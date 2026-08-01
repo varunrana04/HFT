@@ -1,0 +1,24 @@
+# HFT Engine — Python Dependencies
+#
+# For backtesting, analytics, and data pipeline.
+# C++ core has NO Python dependencies.
+
+# ─── Data Pipeline ────────────────────────────────────
+requests>=2.31.0           # HTTP for Binance data download
+pandas>=2.1.0              # Data manipulation & validation
+numpy>=1.24.0              # Numerical operations
+pyarrow>=14.0.0            # Parquet I/O (fast columnar storage)
+
+# ─── Statistics & Modeling ────────────────────────────
+scipy>=1.11.0              # Statistical functions
+statsmodels>=0.14.0        # Cointegration, OU estimation
+
+# ─── Visualization ────────────────────────────────────
+matplotlib>=3.8.0          # Equity curves, drawdowns
+plotly>=5.18.0             # Interactive dashboards
+
+# ─── Testing ──────────────────────────────────────────
+pytest>=7.4.0              # Python test framework
+
+# ─── Build (optional, for C++ bindings) ───────────────
+# pybind11>=2.11.0         # Uncomment when building C++ bindings

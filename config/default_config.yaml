@@ -1,0 +1,96 @@
+# Default configuration for HFT Engine
+# All values can be overridden per-strategy in strategies/*.yaml
+
+# ─── Data Source ───────────────────────────────────────────────
+data:
+  source: "binance"                    # Exchange data source
+  base_url: "https://data.binance.vision/data/spot/daily"
+  default_symbol: "BTCUSDT"
+  data_type: "aggTrades"               # aggTrades | trades
+  storage_format: "parquet"            # parquet | csv
+
+# ─── Data Validation Thresholds ────────────────────────────────
+validation:
+  max_staleness_seconds: 5             # Reject ticks older than this
+  max_future_seconds: 1                # Reject ticks this far in the future
+  max_price_change_pct: 0.05           # 5% max single-tick price move
+  max_quantity: 1000000000             # 1B units max per trade
+  min_book_depth: 1                    # Minimum levels per side
+  max_sequence_gap: 10                 # Max allowed gap in sequence numbers
+
+# ─── Order Book ────────────────────────────────────────────────
+order_book:
+  max_levels: 20                       # Price levels tracked per side
+  price_scale: 100000000               # Fixed-point price scaling (10^8)
+
+# ─── Alpha Signals ─────────────────────────────────────────────
+signals:
+  # Signal weights (must sum to ~1.0)
+  weights:
+    microprice: 0.25
+    ofi: 0.25
+    vpin: 0.10
+    spread_dynamics: 0.15
+    realized_vol: 0.10
+    stat_arb: 0.15
+  
+  # VPIN parameters
+  vpin:
+    bucket_size: 50                    # Volume per bucket (in base units)
+    n_buckets: 50                      # Rolling window of buckets
+  
+  # Realized volatility
+  realized_vol:
+    window_ticks: 100                  # Number of trades for vol estimation
+  
+  # Statistical arbitrage
+  stat_arb:
+    zscore_entry: 2.0                  # Enter when |Z| > this
+    zscore_exit: 0.5                   # Exit when |Z| < this
+    lookback_ticks: 1000               # Window for mean/std estimation
+    half_life_max: 500                 # Max half-life (OU) to consider
+
+# ─── Risk Management ──────────────────────────────────────────
+risk:
+  max_position_size: 100               # Max units (base currency)
+  max_drawdown_pct: 0.05               # 5% max drawdown → halt trading
+  max_single_order_pct: 0.02           # 2% of portfolio per order
+  max_daily_loss_pct: 0.03             # 3% max daily loss
+  circuit_breaker_cooldown_sec: 60     # Seconds to wait after circuit break
+
+# ─── Execution ─────────────────────────────────────────────────
+execution:
+  mode: "backtest"                     # backtest | paper | live
+  order_type: "limit"                  # limit | market
+  latency_injection_us: 100            # Simulated order latency (μs)
+
+# ─── Cost Model ────────────────────────────────────────────────
+costs:
+  market: "crypto_binance"             # crypto_binance | indian_equity
+  
+  crypto_binance:
+    maker_fee_pct: 0.001               # 0.10%
+    taker_fee_pct: 0.001               # 0.10%
+    bnb_discount: false                # Apply BNB discount (0.075%)
+  
+  indian_equity:
+    brokerage_flat: 20.0               # ₹20 per order (Zerodha)
+    brokerage_pct: 0.0003              # 0.03% (capped at flat)
+    stt_sell_pct: 0.00025              # 0.025% on sell (intraday)
+    exchange_charge_pct: 0.0000345     # NSE exchange charge
+    sebi_fee_pct: 0.000001             # SEBI turnover fee
+    stamp_duty_buy_pct: 0.00003        # Stamp duty on buy
+    gst_pct: 0.18                      # 18% GST on brokerage+exchange
+
+  slippage:
+    impact_coefficient: 0.1            # η in I(Q) = σ × η × (Q/V)^0.5
+    impact_exponent: 0.5               # α (square-root law)
+
+# ─── Backtest Settings ─────────────────────────────────────────
+backtest:
+  initial_capital: 50000.0             # Starting capital (USD)
+  currency: "USD"
+  fill_model: "realistic"             # realistic | optimistic
+  queue_position: true                 # Simulate queue position for limits
+  feed_latency_us: 50                  # Simulated feed latency (μs)
+  order_latency_us: 100                # Simulated order latency (μs)
