@@ -8,17 +8,19 @@
 #include <string>
 #include <functional>
 
-struct TestCase;
-extern std::vector<TestCase>& get_tests();
+struct TestRegistrar {
+    TestRegistrar(const char* name, std::function<bool()> func);
+};
 
 #define ASSERT_TRUE(expr) do { if (!(expr)) { std::cerr << "  FAIL: " << #expr << " [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
 #define ASSERT_FALSE(expr) ASSERT_TRUE(!(expr))
 #define ASSERT_EQ(a, b) do { if ((a) != (b)) { std::cerr << "  FAIL: " << #a << " == " << #b << " (" << (a) << " != " << (b) << ") [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
 #define ASSERT_GT(a, b) do { if (!((a) > (b))) { std::cerr << "  FAIL: " << #a << " > " << #b << " [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
+#define ASSERT_EQ_SIDE(a, b) do { if (static_cast<int>(a) != static_cast<int>(b)) { std::cerr << "  FAIL: " << #a << " == " << #b << " [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
 
 #define TEST(suite, name)                                         \
-    static bool test_##suite##_##name();                          \
-    static TestRegistrar reg_##suite##_##name(                    \
+    [[maybe_unused]] static bool test_##suite##_##name();         \
+    [[maybe_unused]] static TestRegistrar reg_##suite##_##name(   \
         #suite "::" #name, test_##suite##_##name);                \
     static bool test_##suite##_##name()
 
@@ -116,6 +118,6 @@ TEST(SPSCQueue, TradeStruct) {
     ASSERT_TRUE(q.try_pop(out));
     ASSERT_EQ(out.timestamp_ns, 1000);
     ASSERT_EQ(out.price, t.price);
-    ASSERT_EQ(out.side, hft::Side::BID);
+    ASSERT_EQ_SIDE(out.side, hft::Side::BID);
     return true;
 }

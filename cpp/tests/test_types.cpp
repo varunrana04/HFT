@@ -6,29 +6,31 @@
 #include "types.h"
 #include "market_data.h"
 
-// Include test macros from test_main.cpp (they're in the same TU via linker)
-extern struct TestRegistrar;
-
 #include <iostream>
 #include <vector>
 #include <string>
 #include <functional>
 
+// Include test macros from test_main.cpp
+struct TestRegistrar {
+    TestRegistrar(const char* name, std::function<bool()> func);
+};
+
 // Redefine test macros for this TU
 struct TestCase2 { std::string name; std::function<bool()> func; };
-extern std::vector<TestCase>& get_tests();
+extern std::vector<TestCase2>& get_tests();
 
 // Re-include assertion macros
 #define ASSERT_TRUE(expr) do { if (!(expr)) { std::cerr << "  FAIL: " << #expr << " [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
 #define ASSERT_FALSE(expr) ASSERT_TRUE(!(expr))
-#define ASSERT_EQ(a, b) do { if ((a) != (b)) { std::cerr << "  FAIL: " << #a << " == " << #b << " (" << (a) << " != " << (b) << ") [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
-#define ASSERT_NE(a, b) do { if ((a) == (b)) { std::cerr << "  FAIL: " << #a << " != " << #b << " [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
-#define ASSERT_GT(a, b) do { if (!((a) > (b))) { std::cerr << "  FAIL: " << #a << " > " << #b << " [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
-#define ASSERT_LT(a, b) do { if (!((a) < (b))) { std::cerr << "  FAIL: " << #a << " < " << #b << " [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
+#define ASSERT_EQ(a, b) do { if (static_cast<int>(a) != static_cast<int>(b)) { std::cerr << "  FAIL: " << #a << " == " << #b << " (" << static_cast<int>(a) << " != " << static_cast<int>(b) << ") [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
+#define ASSERT_NE(a, b) do { if (static_cast<int>(a) == static_cast<int>(b)) { std::cerr << "  FAIL: " << #a << " != " << #b << " [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
+#define ASSERT_GT(a, b) do { if (!(static_cast<int>(a) > static_cast<int>(b))) { std::cerr << "  FAIL: " << #a << " > " << #b << " [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
+#define ASSERT_LT(a, b) do { if (!(static_cast<int>(a) < static_cast<int>(b))) { std::cerr << "  FAIL: " << #a << " < " << #b << " [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
 
 #define TEST(suite, name)                                         \
-    static bool test_##suite##_##name();                          \
-    static TestRegistrar reg_##suite##_##name(                    \
+    [[maybe_unused]] static bool test_##suite##_##name();         \
+    [[maybe_unused]] static TestRegistrar reg_##suite##_##name(   \
         #suite "::" #name, test_##suite##_##name);                \
     static bool test_##suite##_##name()
 

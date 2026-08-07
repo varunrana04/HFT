@@ -32,8 +32,8 @@ struct TestRegistrar {
 };
 
 #define TEST(suite, name)                                         \
-    static bool test_##suite##_##name();                          \
-    static TestRegistrar reg_##suite##_##name(                    \
+    [[maybe_unused]] static bool test_##suite##_##name();         \
+    [[maybe_unused]] static TestRegistrar reg_##suite##_##name(   \
         #suite "::" #name, test_##suite##_##name);                \
     static bool test_##suite##_##name()
 

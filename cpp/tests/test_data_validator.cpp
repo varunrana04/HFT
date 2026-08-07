@@ -15,14 +15,18 @@
 struct TestCase;
 extern std::vector<TestCase>& get_tests();
 
+struct TestRegistrar {
+    TestRegistrar(const char* name, std::function<bool()> func);
+};
+
 #define ASSERT_TRUE(expr) do { if (!(expr)) { std::cerr << "  FAIL: " << #expr << " [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
 #define ASSERT_FALSE(expr) ASSERT_TRUE(!(expr))
-#define ASSERT_EQ(a, b) do { if ((a) != (b)) { std::cerr << "  FAIL: " << #a << " == " << #b << " (" << (a) << " != " << (b) << ") [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
-#define ASSERT_GT(a, b) do { if (!((a) > (b))) { std::cerr << "  FAIL: " << #a << " > " << #b << " [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
+#define ASSERT_EQ(a, b) do { if (static_cast<int>(a) != static_cast<int>(b)) { std::cerr << "  FAIL: " << #a << " == " << #b << " (" << static_cast<int>(a) << " != " << static_cast<int>(b) << ") [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
+#define ASSERT_GT(a, b) do { if (!(static_cast<int>(a) > static_cast<int>(b))) { std::cerr << "  FAIL: " << #a << " > " << #b << " [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
 
 #define TEST(suite, name) \
-    static bool test_##suite##_##name(); \
-    static TestRegistrar reg_##suite##_##name(#suite "::" #name, test_##suite##_##name); \
+    [[maybe_unused]] static bool test_##suite##_##name(); \
+    [[maybe_unused]] static TestRegistrar reg_##suite##_##name(#suite "::" #name, test_##suite##_##name); \
     static bool test_##suite##_##name()
 
 static hft::Trade make_valid_trade(int64_t ts, int64_t seq, double price,

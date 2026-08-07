@@ -14,9 +14,11 @@
 #include <functional>
 
 // ─── Test harness (shared with test_main.cpp via linker) ─────
-extern struct TestRegistrar;
+struct TestRegistrar {
+    TestRegistrar(const char* name, std::function<bool()> func);
+};
 struct TestCase7SE { std::string name; std::function<bool()> func; };
-extern std::vector<TestCase>& get_tests();
+extern std::vector<TestCase7SE>& get_tests();
 
 #define ASSERT_TRUE(expr) do { if (!(expr)) { std::cerr << "  FAIL: " << #expr << " [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
 #define ASSERT_FALSE(expr) ASSERT_TRUE(!(expr))
@@ -28,8 +30,8 @@ extern std::vector<TestCase>& get_tests();
 #define ASSERT_NEAR(a, b, eps) do { if (std::abs((a) - (b)) > (eps)) { std::cerr << "  FAIL: " << #a << " ≈ " << #b << " (diff=" << std::abs((a)-(b)) << ", eps=" << (eps) << ") [" << __FILE__ << ":" << __LINE__ << "]" << std::endl; return false; } } while(0)
 
 #define TEST(suite, name)                                         \
-    static bool test_##suite##_##name();                          \
-    static TestRegistrar reg_##suite##_##name(                    \
+    [[maybe_unused]] static bool test_##suite##_##name();         \
+    [[maybe_unused]] static TestRegistrar reg_##suite##_##name(   \
         #suite "::" #name, test_##suite##_##name);                \
     static bool test_##suite##_##name()
 

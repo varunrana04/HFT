@@ -1,0 +1,2 @@
+C:\Users\Varun\mingw64\bin\ar.exe qc libhft_core.a CMakeFiles/hft_core.dir/cpp/core/market_data.cpp.obj CMakeFiles/hft_core.dir/cpp/core/order_book.cpp.obj CMakeFiles/hft_core.dir/cpp/core/features.cpp.obj CMakeFiles/hft_core.dir/cpp/core/signal_combiner.cpp.obj CMakeFiles/hft_core.dir/cpp/core/risk_manager.cpp.obj CMakeFiles/hft_core.dir/cpp/core/order_manager.cpp.obj CMakeFiles/hft_core.dir/cpp/core/data_validator.cpp.obj CMakeFiles/hft_core.dir/cpp/core/strategy_engine.cpp.obj
+C:\Users\Varun\mingw64\bin\ranlib.exe libhft_core.a
