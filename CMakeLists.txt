@@ -29,15 +29,18 @@ add_library(hft_core STATIC
 )
 target_include_directories(hft_core PUBLIC cpp/core)
 
-# ─── Python Bindings (optional, requires pybind11) ─────────────
-find_package(pybind11 QUIET)
-if(pybind11_FOUND)
-    pybind11_add_module(hft_engine cpp/bindings/py_engine.cpp)
-    target_link_libraries(hft_engine PRIVATE hft_core)
-    message(STATUS "pybind11 found — Python bindings will be built")
-else()
-    message(STATUS "pybind11 not found — skipping Python bindings")
-endif()
+# ─── Python Bindings (Requires pybind11) ─────────────
+include(FetchContent)
+FetchContent_Declare(
+    pybind11
+    GIT_REPOSITORY https://github.com/pybind/pybind11.git
+    GIT_TAG        v2.12.0
+)
+FetchContent_MakeAvailable(pybind11)
+
+pybind11_add_module(hft_engine cpp/bindings/py_engine.cpp)
+target_link_libraries(hft_engine PRIVATE hft_core)
+message(STATUS "pybind11 fetched — Python bindings will be built")
 
 # ─── Tests ─────────────────────────────────────────────────────
 option(HFT_BUILD_TESTS "Build unit tests" ON)
