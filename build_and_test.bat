@@ -13,7 +13,7 @@ echo.
 REM ── Step 1: CMake Configure ──
 echo [1/4] Configuring CMake...
 set PATH=%PATH%;%APPDATA%\Python\Python314\Scripts;%USERPROFILE%\AppData\Roaming\Python\Python314\Scripts
-cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+cmake -B build -DCMAKE_BUILD_TYPE=Release
 if %ERRORLEVEL% neq 0 (
     echo [ERROR] CMake configure failed!
     echo Make sure CMake 3.20+ is installed and in PATH.
