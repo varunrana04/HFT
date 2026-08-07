@@ -1,13 +1,14 @@
-CMakeFiles/hft_tests.dir/cpp/tests/test_memory_pool.cpp.obj: \
- C:\Users\Varun\Downloads\HFT\cpp\tests\test_memory_pool.cpp \
- C:/Users/Varun/Downloads/HFT/cpp/core/memory_pool.h \
- C:/Users/Varun/mingw64/include/c++/14.2.0/cstddef \
+CMakeFiles/hft_tests.dir/cpp/tests/test_order_book.cpp.obj: \
+ C:\Users\Varun\Downloads\HFT\cpp\tests\test_order_book.cpp \
+ C:/Users/Varun/Downloads/HFT/cpp/core/order_book.h \
+ C:/Users/Varun/Downloads/HFT/cpp/core/types.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/cstdint \
  C:/Users/Varun/mingw64/include/c++/14.2.0/x86_64-w64-mingw32/bits/c++config.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/x86_64-w64-mingw32/bits/os_defines.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/x86_64-w64-mingw32/bits/cpu_defines.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/pstl/pstl_config.h \
- C:/Users/Varun/mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/stddef.h \
- C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/stddef.h \
+ C:/Users/Varun/mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/stdint.h \
+ C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/stdint.h \
  C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/crtdefs.h \
  C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/corecrt.h \
  C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/_mingw.h \
@@ -15,24 +16,39 @@ CMakeFiles/hft_tests.dir/cpp/tests/test_memory_pool.cpp.obj: \
  C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/_mingw_secapi.h \
  C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/vadefs.h \
  C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/sdks/_mingw_ddk.h \
+ C:/Users/Varun/mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/stddef.h \
+ C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/stddef.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/cstddef \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/version.h \
- C:/Users/Varun/mingw64/include/c++/14.2.0/cstdint \
- C:/Users/Varun/mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/stdint.h \
- C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/stdint.h \
- C:/Users/Varun/mingw64/include/c++/14.2.0/array \
- C:/Users/Varun/mingw64/include/c++/14.2.0/compare \
- C:/Users/Varun/mingw64/include/c++/14.2.0/concepts \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/limits \
  C:/Users/Varun/mingw64/include/c++/14.2.0/type_traits \
- C:/Users/Varun/mingw64/include/c++/14.2.0/initializer_list \
- C:/Users/Varun/mingw64/include/c++/14.2.0/bits/functexcept.h \
- C:/Users/Varun/mingw64/include/c++/14.2.0/bits/exception_defines.h \
- C:/Users/Varun/mingw64/include/c++/14.2.0/bits/stl_algobase.h \
+ C:/Users/Varun/Downloads/HFT/cpp/core/data_validator.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/cmath \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/requires_hosted.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/cpp_type_traits.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/ext/type_traits.h \
+ C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/math.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/std_abs.h \
+ C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/stdlib.h \
+ C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/corecrt_wstdlib.h \
+ C:/Users/Varun/mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/limits.h \
+ C:/Users/Varun/mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/syslimits.h \
+ C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/limits.h \
+ C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/sec_api/stdlib_s.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/stdlib.h \
+ C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/malloc.h \
+ C:/Users/Varun/mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/mm_malloc.h \
+ C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/errno.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/specfun.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/stl_algobase.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/functexcept.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/exception_defines.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/ext/numeric_traits.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/stl_pair.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/move.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/utility.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/compare \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/concepts \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/stl_iterator_base_types.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/iterator_concepts.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/ptr_traits.h \
@@ -47,25 +63,39 @@ CMakeFiles/hft_tests.dir/cpp/tests/test_memory_pool.cpp.obj: \
  C:/Users/Varun/mingw64/include/c++/14.2.0/debug/debug.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/predefined_ops.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bit \
- C:/Users/Varun/mingw64/include/c++/14.2.0/bits/range_access.h \
- C:/Users/Varun/mingw64/include/c++/14.2.0/cassert \
- C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/assert.h \
- C:/Users/Varun/mingw64/include/c++/14.2.0/stdlib.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/tr1/gamma.tcc \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/tr1/special_function_util.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/tr1/bessel_function.tcc \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/tr1/beta_function.tcc \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/tr1/ell_integral.tcc \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/tr1/exp_integral.tcc \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/tr1/hypergeometric.tcc \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/tr1/legendre_function.tcc \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/tr1/modified_bessel_func.tcc \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/tr1/poly_hermite.tcc \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/tr1/poly_laguerre.tcc \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/tr1/riemann_zeta.tcc \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/algorithm \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/stl_algo.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/algorithmfwd.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/initializer_list \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/stl_heap.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/uniform_int_dist.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/stl_tempbuf.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/cstdlib \
- C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/stdlib.h \
- C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/corecrt_wstdlib.h \
- C:/Users/Varun/mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/limits.h \
- C:/Users/Varun/mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/syslimits.h \
- C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/limits.h \
- C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/sec_api/stdlib_s.h \
- C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/malloc.h \
- C:/Users/Varun/mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/include/mm_malloc.h \
- C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/errno.h \
- C:/Users/Varun/mingw64/include/c++/14.2.0/bits/std_abs.h \
- C:/Users/Varun/mingw64/include/c++/14.2.0/limits \
- C:/Users/Varun/Downloads/HFT/cpp/core/types.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/ranges_algo.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/ranges_algobase.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/ranges_base.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/max_size_type.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/numbers \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/invoke.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/ranges_util.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/pstl/glue_algorithm_defs.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/pstl/execution_defs.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/cstring \
+ C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/string.h \
+ C:/Users/Varun/mingw64/x86_64-w64-mingw32/include/sec_api/string_s.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/iostream \
- C:/Users/Varun/mingw64/include/c++/14.2.0/bits/requires_hosted.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/ostream \
  C:/Users/Varun/mingw64/include/c++/14.2.0/ios \
  C:/Users/Varun/mingw64/include/c++/14.2.0/iosfwd \
@@ -122,15 +152,12 @@ CMakeFiles/hft_tests.dir/cpp/tests/test_memory_pool.cpp.obj: \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/stl_function.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/backward/binders.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/refwrap.h \
- C:/Users/Varun/mingw64/include/c++/14.2.0/bits/invoke.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/range_access.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/basic_string.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/ext/alloc_traits.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/alloc_traits.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/string_view \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/functional_hash.h \
- C:/Users/Varun/mingw64/include/c++/14.2.0/bits/ranges_base.h \
- C:/Users/Varun/mingw64/include/c++/14.2.0/bits/max_size_type.h \
- C:/Users/Varun/mingw64/include/c++/14.2.0/numbers \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/string_view.tcc \
  C:/Users/Varun/mingw64/include/c++/14.2.0/ext/string_conversions.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/cstdio \
@@ -141,7 +168,6 @@ CMakeFiles/hft_tests.dir/cpp/tests/test_memory_pool.cpp.obj: \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/uses_allocator.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/uses_allocator_args.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/tuple \
- C:/Users/Varun/mingw64/include/c++/14.2.0/bits/ranges_util.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/locale_classes.tcc \
  C:/Users/Varun/mingw64/include/c++/14.2.0/system_error \
  C:/Users/Varun/mingw64/include/c++/14.2.0/x86_64-w64-mingw32/bits/error_constants.h \
@@ -174,4 +200,5 @@ CMakeFiles/hft_tests.dir/cpp/tests/test_memory_pool.cpp.obj: \
  C:/Users/Varun/mingw64/include/c++/14.2.0/ext/aligned_buffer.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/enable_special_members.h \
  C:/Users/Varun/mingw64/include/c++/14.2.0/bits/node_handle.h \
- C:/Users/Varun/mingw64/include/c++/14.2.0/bits/erase_if.h
+ C:/Users/Varun/mingw64/include/c++/14.2.0/bits/erase_if.h \
+ C:/Users/Varun/mingw64/include/c++/14.2.0/array

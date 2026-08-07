@@ -76,7 +76,10 @@ TEST(MemoryPool, DeallocateAndReuse) {
 
 TEST(MemoryPool, Reset) {
     hft::MemoryPool<hft::Trade, 16> pool;
-    for (size_t i = 0; i < 10; ++i) pool.allocate();
+    for (size_t i = 0; i < 10; ++i) {
+        hft::Trade* t = pool.allocate();
+        ASSERT_TRUE(t != nullptr);
+    }
     ASSERT_EQ(pool.allocated_count(), size_t{10});
 
     pool.reset();

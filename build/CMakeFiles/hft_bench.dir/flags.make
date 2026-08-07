@@ -6,5 +6,5 @@ CXX_DEFINES =
 
 CXX_INCLUDES = @CMakeFiles\hft_bench.dir\includes_CXX.rsp
 
-CXX_FLAGS = -O3 -march=native -flto -DNDEBUG -std=gnu++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow
+CXX_FLAGS = -O3 -march=native -DNDEBUG -std=gnu++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow
 

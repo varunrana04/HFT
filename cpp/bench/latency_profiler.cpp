@@ -175,7 +175,7 @@ int main() {
     {
         std::vector<int64_t> latencies;
         latencies.reserve(ITERATIONS);
-        hft::OrderBook book(1);
+        auto book = std::make_unique<hft::OrderBook>(1);
 
         // Warmup
         for (int i = 0; i < WARMUP; ++i) {
@@ -186,10 +186,10 @@ int main() {
             u.quantity = hft::qty_to_fixed(1.0);
             u.order_count = 1;
             u.side = (i % 2 == 0) ? hft::Side::BID : hft::Side::ASK;
-            book.apply_update(u);
-            if (i % 1000 == 999) book.reset();
+            book->apply_update(u);
+            if (i % 1000 == 999) book->reset();
         }
-        book.reset();
+        book->reset();
 
         // Benchmark
         for (int i = 0; i < ITERATIONS; ++i) {
@@ -202,9 +202,9 @@ int main() {
             u.side = (i % 2 == 0) ? hft::Side::BID : hft::Side::ASK;
 
             int64_t elapsed;
-            { hft::ScopedTimer timer(elapsed); book.apply_update(u); }
+            { hft::ScopedTimer timer(elapsed); book->apply_update(u); }
             latencies.push_back(elapsed);
-            if (i % 1000 == 999) book.reset();
+            if (i % 1000 == 999) book->reset();
         }
         results.push_back(compute_stats("Order Book Update", latencies));
     }
@@ -236,7 +236,7 @@ int main() {
     {
         std::vector<int64_t> latencies;
         latencies.reserve(ITERATIONS);
-        hft::SPSCQueue<hft::Trade, 65536> queue;
+        auto queue = std::make_unique<hft::SPSCQueue<hft::Trade, 65536>>();
 
         for (int i = 0; i < ITERATIONS; ++i) {
             hft::Trade t{};
@@ -246,9 +246,9 @@ int main() {
             int64_t elapsed;
             {
                 hft::ScopedTimer timer(elapsed);
-                queue.try_push(t);
+                [[maybe_unused]] bool pushed = queue->try_push(t);
                 hft::Trade out;
-                queue.try_pop(out);
+                [[maybe_unused]] bool popped = queue->try_pop(out);
             }
             latencies.push_back(elapsed);
         }
@@ -274,13 +274,13 @@ int main() {
     {
         std::vector<int64_t> latencies;
         latencies.reserve(ITERATIONS);
-        hft::FeatureEngine engine;
+        auto engine = std::make_unique<hft::FeatureEngine>();
 
         // Warmup with synthetic data
         for (int i = 0; i < WARMUP; ++i) {
             auto book = make_book(i);
             auto trade = make_trade(i);
-            engine.compute_all(book, trade);
+            engine->compute_all(book, trade);
         }
 
         // Benchmark
@@ -289,7 +289,7 @@ int main() {
             auto trade = make_trade(WARMUP + i);
 
             int64_t elapsed;
-            { hft::ScopedTimer timer(elapsed); engine.compute_all(book, trade); }
+            { hft::ScopedTimer timer(elapsed); engine->compute_all(book, trade); }
             latencies.push_back(elapsed);
         }
         results.push_back(compute_stats("Feature Engine (6 signals)", latencies));
@@ -329,7 +329,7 @@ int main() {
 
         for (int i = 0; i < ITERATIONS; ++i) {
             hft::Order order{};
-            order.id = static_cast<uint64_t>(i);
+            order.order_id = static_cast<uint64_t>(i);
             order.price = hft::price_to_fixed(50000.0);
             order.quantity = hft::qty_to_fixed(0.01);
             order.side = hft::Side::BID;
@@ -356,15 +356,15 @@ int main() {
         hft::FeatureConfig fcfg;
         hft::RiskConfig rcfg;
 
-        hft::StrategyEngine engine(scfg, fcfg, rcfg);
+        auto engine = std::make_unique<hft::StrategyEngine>(scfg, fcfg, rcfg);
 
         // Warmup
         for (int i = 0; i < WARMUP; ++i) {
             auto book = make_book(i);
             auto trade = make_trade(i);
-            engine.on_trade(trade, book);
+            engine->on_trade(trade, book);
         }
-        engine.reset();
+        engine->reset();
 
         // Benchmark: full tick-to-trade
         for (int i = 0; i < ITERATIONS; ++i) {
@@ -372,7 +372,7 @@ int main() {
             auto trade = make_trade(WARMUP + i);
 
             int64_t elapsed;
-            { hft::ScopedTimer timer(elapsed); engine.on_trade(trade, book); }
+            { hft::ScopedTimer timer(elapsed); engine->on_trade(trade, book); }
             latencies.push_back(elapsed);
         }
         results.push_back(compute_stats("Full Pipeline (Tick-to-Trade)", latencies));

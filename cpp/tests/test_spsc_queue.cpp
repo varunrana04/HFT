@@ -79,7 +79,8 @@ TEST(SPSCQueue, Empty_RejectsPop) {
 
 TEST(SPSCQueue, Peek_DoesNotRemove) {
     hft::SPSCQueue<int, 16> q;
-    q.try_push(99);
+    bool pushed = q.try_push(99);
+    ASSERT_TRUE(pushed);
     int val = 0;
     ASSERT_TRUE(q.try_peek(val));
     ASSERT_EQ(val, 99);

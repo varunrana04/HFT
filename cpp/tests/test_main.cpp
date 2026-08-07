@@ -26,10 +26,12 @@ static std::vector<TestCase>& get_tests() {
 }
 
 struct TestRegistrar {
-    TestRegistrar(const char* name, std::function<bool()> func) {
-        get_tests().push_back({name, std::move(func)});
-    }
+    TestRegistrar(const char* name, std::function<bool()> func);
 };
+
+TestRegistrar::TestRegistrar(const char* name, std::function<bool()> func) {
+    get_tests().push_back({name, std::move(func)});
+}
 
 #define TEST(suite, name)                                         \
     [[maybe_unused]] static bool test_##suite##_##name();         \

@@ -35,13 +35,10 @@ namespace hft {
 FeatureEngine::FeatureEngine(const FeatureConfig& config) noexcept
     : config_(config)
 {
-    // Clamp runtime params to compile-time limits
-    config_.vpin_n_buckets = std::min(config_.vpin_n_buckets,
-                                     MAX_VPIN_BUCKETS);
-    config_.vol_window_ticks = std::min(config_.vol_window_ticks,
-                                       MAX_VOL_WINDOW);
-    config_.stat_arb_lookback = std::min(config_.stat_arb_lookback,
-                                        MAX_STATARB_WINDOW);
+    // Clamp runtime params to compile-time limits and prevent divide by zero (must be >= 1)
+    config_.vpin_n_buckets = std::max(1, std::min(config_.vpin_n_buckets, MAX_VPIN_BUCKETS));
+    config_.vol_window_ticks = std::max(1, std::min(config_.vol_window_ticks, MAX_VOL_WINDOW));
+    config_.stat_arb_lookback = std::max(1, std::min(config_.stat_arb_lookback, MAX_STATARB_WINDOW));
 
     reset();
 }

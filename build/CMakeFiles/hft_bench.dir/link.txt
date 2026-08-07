@@ -1,3 +1,3 @@
 C:\Users\Varun\AppData\Roaming\Python\Python314\site-packages\cmake\data\bin\cmake.exe -E rm -f CMakeFiles\hft_bench.dir/objects.a
 C:\Users\Varun\mingw64\bin\ar.exe qc CMakeFiles\hft_bench.dir/objects.a @CMakeFiles\hft_bench.dir\objects1.rsp
-C:\Users\Varun\mingw64\bin\c++.exe -O3 -march=native -flto -DNDEBUG -Wl,--whole-archive CMakeFiles\hft_bench.dir/objects.a -Wl,--no-whole-archive -o hft_bench.exe -Wl,--out-implib,libhft_bench.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\hft_bench.dir\linkLibs.rsp
+C:\Users\Varun\mingw64\bin\c++.exe -O3 -march=native -DNDEBUG -Wl,--whole-archive CMakeFiles\hft_bench.dir/objects.a -Wl,--no-whole-archive -o hft_bench.exe -Wl,--out-implib,libhft_bench.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\hft_bench.dir\linkLibs.rsp

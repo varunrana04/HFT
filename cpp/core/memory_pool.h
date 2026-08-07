@@ -25,6 +25,7 @@
 #include <cassert>
 #include <new>      // std::launder
 #include <type_traits>
+#include <limits>
 
 namespace hft {
 
