@@ -17,6 +17,19 @@ statsmodels>=0.14.0        # Cointegration, OU estimation
 matplotlib>=3.8.0          # Equity curves, drawdowns
 plotly>=5.18.0             # Interactive dashboards
 
+# ─── Live Execution (MT5 Gateway) ─────────────────────
+MetaTrader5>=5.0.45        # MT5 Python API (Windows only)
+
+# ─── TradingView Webhook Server ───────────────────────
+fastapi>=0.104.0           # Async web framework
+uvicorn>=0.24.0            # ASGI server
+httpx>=0.25.0              # Async HTTP client (Alpaca broker)
+
+# ─── ML Pipeline (Phase 4) ───────────────────────────
+lightgbm>=4.1.0            # Gradient boosting model
+scikit-learn>=1.3.0        # Model evaluation, metrics
+onnxruntime>=1.16.0        # ONNX model inference
+
 # ─── Testing ──────────────────────────────────────────
 pytest>=7.4.0              # Python test framework
 

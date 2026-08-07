@@ -25,6 +25,7 @@ add_library(hft_core STATIC
     cpp/core/risk_manager.cpp
     cpp/core/order_manager.cpp
     cpp/core/data_validator.cpp
+    cpp/core/strategy_engine.cpp
 )
 target_include_directories(hft_core PUBLIC cpp/core)
 
@@ -53,6 +54,7 @@ if(HFT_BUILD_TESTS)
         cpp/tests/test_data_validator.cpp
         cpp/tests/test_features.cpp
         cpp/tests/test_risk_manager.cpp
+        cpp/tests/test_strategy_engine.cpp
     )
     target_link_libraries(hft_tests PRIVATE hft_core)
     target_include_directories(hft_tests PRIVATE cpp/core cpp/tests)
