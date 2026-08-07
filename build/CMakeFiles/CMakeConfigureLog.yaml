@@ -1,0 +1,906 @@
+
+---
+events:
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineSystem.cmake:218 (message)"
+      - "CMakeLists.txt:2 (project)"
+    message: |
+      The system is: Windows - 10.0.26200 - AMD64
+...
+
+---
+events:
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:501 (find_file)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:538 (CMAKE_DETERMINE_COMPILER_ID_WRITE)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:8 (CMAKE_DETERMINE_COMPILER_ID_BUILD)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCXXCompiler.cmake:125 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:2 (project)"
+    mode: "file"
+    variable: "src_in"
+    description: "Path to a file."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "CMakeCXXCompilerId.cpp.in"
+    candidate_directories:
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/"
+    found: "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeCXXCompilerId.cpp.in"
+    search_context:
+      ENV{PATH}:
+        - "C:\\Python314\\Scripts\\"
+        - "C:\\Python314\\"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\ProgramData\\chocolatey\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Users\\Varun\\AppData\\Local\\agy\\bin"
+        - "C:\\Users\\Varun\\.local\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\Varun\\AppData\\Local\\Programs\\Antigravity\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Google\\Cloud SDK\\google-cloud-sdk\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Programs\\Antigravity IDE\\bin"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\npm"
+        - "c:\\Users\\Varun\\.antigravity-ide\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\Python\\Python314\\Scripts"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\Python\\Python314\\Scripts"
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCXXCompiler.cmake:125 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:2 (project)"
+    message: |
+      Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+      Compiler:  
+      Build flags: 
+      Id flags:  
+      
+      The output was:
+      1
+      MSBuild version 17.14.51+25f168cee for .NET Framework
+      Build started 08/08/2026 02:05:59.
+      
+      Project "C:\\Users\\Varun\\Downloads\\HFT\\build\\CMakeFiles\\4.4.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj" on node 1 (default targets).
+      PrepareForBuild:
+        Creating directory "Debug\\".
+      C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\MSBuild\\Microsoft\\VC\\v170\\Microsoft.CppBuild.targets(520,5): warning MSB8003: The WindowsSDKDir property is not defined. Some build tools may not be found. [C:\\Users\\Varun\\Downloads\\HFT\\build\\CMakeFiles\\4.4.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj]
+        Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
+        Creating directory "Debug\\CompilerIdCXX.tlog\\".
+      InitializeBuildStatus:
+        Creating "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+        Touching "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild".
+      ClCompile:
+        C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\CL.exe /c /nologo /W0 /WX- /diagnostics:column /Od /D _MBCS /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"Debug\\\\" /Fd"Debug\\vc143.pdb" /external:W0 /Gd /TP /FC /errorReport:queue CMakeCXXCompilerId.cpp
+        CMakeCXXCompilerId.cpp
+      Link:
+        C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:".\\CompilerIdCXX.exe" /INCREMENTAL:NO /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /PDB:".\\CompilerIdCXX.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:".\\CompilerIdCXX.lib" /MACHINE:X64 Debug\\CMakeCXXCompilerId.obj
+      LINK : fatal error LNK1181: cannot open input file 'kernel32.lib' [C:\\Users\\Varun\\Downloads\\HFT\\build\\CMakeFiles\\4.4.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj]
+      Done Building Project "C:\\Users\\Varun\\Downloads\\HFT\\build\\CMakeFiles\\4.4.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj" (default targets) -- FAILED.
+      
+      Build FAILED.
+      
+      "C:\\Users\\Varun\\Downloads\\HFT\\build\\CMakeFiles\\4.4.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj" (default target) (1) ->
+      (PrepareForBuild target) -> 
+        C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\MSBuild\\Microsoft\\VC\\v170\\Microsoft.CppBuild.targets(520,5): warning MSB8003: The WindowsSDKDir property is not defined. Some build tools may not be found. [C:\\Users\\Varun\\Downloads\\HFT\\build\\CMakeFiles\\4.4.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj]
+      
+      
+      "C:\\Users\\Varun\\Downloads\\HFT\\build\\CMakeFiles\\4.4.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj" (default target) (1) ->
+      (Link target) -> 
+        LINK : fatal error LNK1181: cannot open input file 'kernel32.lib' [C:\\Users\\Varun\\Downloads\\HFT\\build\\CMakeFiles\\4.4.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj]
+      
+          1 Warning(s)
+          1 Error(s)
+      
+      Time Elapsed 00:00:08.77
+      
+      
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:501 (find_file)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:538 (CMAKE_DETERMINE_COMPILER_ID_WRITE)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:8 (CMAKE_DETERMINE_COMPILER_ID_BUILD)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCXXCompiler.cmake:125 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:2 (project)"
+    mode: "file"
+    variable: "src_in"
+    description: "Path to a file."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "CMakeCXXCompilerId.cpp.in"
+    candidate_directories:
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/"
+    found: "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeCXXCompilerId.cpp.in"
+    search_context:
+      ENV{PATH}:
+        - "C:\\Python314\\Scripts\\"
+        - "C:\\Python314\\"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\ProgramData\\chocolatey\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Users\\Varun\\AppData\\Local\\agy\\bin"
+        - "C:\\Users\\Varun\\.local\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\Varun\\AppData\\Local\\Programs\\Antigravity\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Google\\Cloud SDK\\google-cloud-sdk\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Programs\\Antigravity IDE\\bin"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\npm"
+        - "c:\\Users\\Varun\\.antigravity-ide\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\Python\\Python314\\Scripts"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\Python\\Python314\\Scripts"
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCXXCompiler.cmake:125 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:2 (project)"
+    message: |
+      Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+      Compiler:  
+      Build flags: 
+      Id flags:  
+      
+      The output was:
+      1
+      MSBuild version 17.14.51+25f168cee for .NET Framework
+      Build started 08/08/2026 02:06:10.
+      
+      Project "C:\\Users\\Varun\\Downloads\\HFT\\build\\CMakeFiles\\4.4.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj" on node 1 (default targets).
+      PrepareForBuild:
+        Creating directory "Debug\\".
+      C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\MSBuild\\Microsoft\\VC\\v170\\Microsoft.CppBuild.targets(520,5): warning MSB8003: The WindowsSDKDir property is not defined. Some build tools may not be found. [C:\\Users\\Varun\\Downloads\\HFT\\build\\CMakeFiles\\4.4.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj]
+        Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
+        Creating directory "Debug\\CompilerIdCXX.tlog\\".
+      InitializeBuildStatus:
+        Creating "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+        Touching "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild".
+      ClCompile:
+        C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\CL.exe /c /nologo /W0 /WX- /diagnostics:column /Od /D _MBCS /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"Debug\\\\" /Fd"Debug\\vc143.pdb" /external:W0 /Gd /TP /FC /errorReport:queue CMakeCXXCompilerId.cpp
+        CMakeCXXCompilerId.cpp
+      Link:
+        C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:".\\CompilerIdCXX.exe" /INCREMENTAL:NO /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /PDB:".\\CompilerIdCXX.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:".\\CompilerIdCXX.lib" /MACHINE:X64 Debug\\CMakeCXXCompilerId.obj
+      LINK : fatal error LNK1181: cannot open input file 'kernel32.lib' [C:\\Users\\Varun\\Downloads\\HFT\\build\\CMakeFiles\\4.4.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj]
+      Done Building Project "C:\\Users\\Varun\\Downloads\\HFT\\build\\CMakeFiles\\4.4.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj" (default targets) -- FAILED.
+      
+      Build FAILED.
+      
+      "C:\\Users\\Varun\\Downloads\\HFT\\build\\CMakeFiles\\4.4.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj" (default target) (1) ->
+      (PrepareForBuild target) -> 
+        C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\MSBuild\\Microsoft\\VC\\v170\\Microsoft.CppBuild.targets(520,5): warning MSB8003: The WindowsSDKDir property is not defined. Some build tools may not be found. [C:\\Users\\Varun\\Downloads\\HFT\\build\\CMakeFiles\\4.4.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj]
+      
+      
+      "C:\\Users\\Varun\\Downloads\\HFT\\build\\CMakeFiles\\4.4.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj" (default target) (1) ->
+      (Link target) -> 
+        LINK : fatal error LNK1181: cannot open input file 'kernel32.lib' [C:\\Users\\Varun\\Downloads\\HFT\\build\\CMakeFiles\\4.4.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj]
+      
+          1 Warning(s)
+          1 Error(s)
+      
+      Time Elapsed 00:00:05.56
+      
+      
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:37 (find_program)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:64 (__resolve_tool_path)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:102 (__resolve_linker_path)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCXXCompiler.cmake:206 (include)"
+      - "CMakeLists.txt:2 (project)"
+    mode: "program"
+    variable: "_CMAKE_TOOL_WITH_PATH"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: false
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "link"
+    candidate_directories:
+      - "C:/Python314/Scripts/"
+      - "C:/Python314/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/ProgramData/chocolatey/bin/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/nodejs/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Users/Varun/AppData/Local/agy/bin/"
+      - "C:/Users/Varun/.local/bin/"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/"
+      - "C:/Users/Varun/AppData/Roaming/npm/"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/"
+    searched_directories:
+      - "C:/Python314/Scripts/link.com"
+      - "C:/Python314/Scripts/link.exe"
+      - "C:/Python314/Scripts/link"
+      - "C:/Python314/link.com"
+      - "C:/Python314/link.exe"
+      - "C:/Python314/link"
+      - "C:/Windows/System32/link.com"
+      - "C:/Windows/System32/link.exe"
+      - "C:/Windows/System32/link"
+      - "C:/Windows/link.com"
+      - "C:/Windows/link.exe"
+      - "C:/Windows/link"
+      - "C:/Windows/System32/wbem/link.com"
+      - "C:/Windows/System32/wbem/link.exe"
+      - "C:/Windows/System32/wbem/link"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/link.com"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/link.exe"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/link"
+      - "C:/Windows/System32/OpenSSH/link.com"
+      - "C:/Windows/System32/OpenSSH/link.exe"
+      - "C:/Windows/System32/OpenSSH/link"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/link.com"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/link.exe"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/link"
+      - "C:/ProgramData/chocolatey/bin/link.com"
+      - "C:/ProgramData/chocolatey/bin/link.exe"
+      - "C:/ProgramData/chocolatey/bin/link"
+      - "C:/Program Files/Git/cmd/link.com"
+      - "C:/Program Files/Git/cmd/link.exe"
+      - "C:/Program Files/Git/cmd/link"
+      - "C:/Program Files/nodejs/link.com"
+      - "C:/Program Files/nodejs/link.exe"
+      - "C:/Program Files/nodejs/link"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/link.com"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/link.exe"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/link"
+      - "C:/Users/Varun/AppData/Local/agy/bin/link.com"
+      - "C:/Users/Varun/AppData/Local/agy/bin/link.exe"
+      - "C:/Users/Varun/AppData/Local/agy/bin/link"
+      - "C:/Users/Varun/.local/bin/link.com"
+      - "C:/Users/Varun/.local/bin/link.exe"
+      - "C:/Users/Varun/.local/bin/link"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/link.com"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/link.exe"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/link"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/link.com"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/link.exe"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/link"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/link.com"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/link.exe"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/link"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/link.com"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/link.exe"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/link"
+      - "C:/Users/Varun/AppData/Roaming/npm/link.com"
+      - "C:/Users/Varun/AppData/Roaming/npm/link.exe"
+      - "C:/Users/Varun/AppData/Roaming/npm/link"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/link.com"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/link.exe"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/link"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/link.com"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/link.exe"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/link"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "C:\\Python314\\Scripts\\"
+        - "C:\\Python314\\"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\ProgramData\\chocolatey\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Users\\Varun\\AppData\\Local\\agy\\bin"
+        - "C:\\Users\\Varun\\.local\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\Varun\\AppData\\Local\\Programs\\Antigravity\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Google\\Cloud SDK\\google-cloud-sdk\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Programs\\Antigravity IDE\\bin"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\npm"
+        - "c:\\Users\\Varun\\.antigravity-ide\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\Python\\Python314\\Scripts"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\Python\\Python314\\Scripts"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:37 (find_program)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:64 (__resolve_tool_path)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:103 (__resolve_linker_path)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCXXCompiler.cmake:206 (include)"
+      - "CMakeLists.txt:2 (project)"
+    mode: "program"
+    variable: "_CMAKE_TOOL_WITH_PATH"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: false
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "lld-link"
+    candidate_directories:
+      - "C:/Python314/Scripts/"
+      - "C:/Python314/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/ProgramData/chocolatey/bin/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/nodejs/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Users/Varun/AppData/Local/agy/bin/"
+      - "C:/Users/Varun/.local/bin/"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/"
+      - "C:/Users/Varun/AppData/Roaming/npm/"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/"
+    searched_directories:
+      - "C:/Python314/Scripts/lld-link.com"
+      - "C:/Python314/Scripts/lld-link.exe"
+      - "C:/Python314/Scripts/lld-link"
+      - "C:/Python314/lld-link.com"
+      - "C:/Python314/lld-link.exe"
+      - "C:/Python314/lld-link"
+      - "C:/Windows/System32/lld-link.com"
+      - "C:/Windows/System32/lld-link.exe"
+      - "C:/Windows/System32/lld-link"
+      - "C:/Windows/lld-link.com"
+      - "C:/Windows/lld-link.exe"
+      - "C:/Windows/lld-link"
+      - "C:/Windows/System32/wbem/lld-link.com"
+      - "C:/Windows/System32/wbem/lld-link.exe"
+      - "C:/Windows/System32/wbem/lld-link"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/lld-link.com"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/lld-link.exe"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/lld-link"
+      - "C:/Windows/System32/OpenSSH/lld-link.com"
+      - "C:/Windows/System32/OpenSSH/lld-link.exe"
+      - "C:/Windows/System32/OpenSSH/lld-link"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lld-link.com"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lld-link.exe"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lld-link"
+      - "C:/ProgramData/chocolatey/bin/lld-link.com"
+      - "C:/ProgramData/chocolatey/bin/lld-link.exe"
+      - "C:/ProgramData/chocolatey/bin/lld-link"
+      - "C:/Program Files/Git/cmd/lld-link.com"
+      - "C:/Program Files/Git/cmd/lld-link.exe"
+      - "C:/Program Files/Git/cmd/lld-link"
+      - "C:/Program Files/nodejs/lld-link.com"
+      - "C:/Program Files/nodejs/lld-link.exe"
+      - "C:/Program Files/nodejs/lld-link"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lld-link.com"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lld-link.exe"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lld-link"
+      - "C:/Users/Varun/AppData/Local/agy/bin/lld-link.com"
+      - "C:/Users/Varun/AppData/Local/agy/bin/lld-link.exe"
+      - "C:/Users/Varun/AppData/Local/agy/bin/lld-link"
+      - "C:/Users/Varun/.local/bin/lld-link.com"
+      - "C:/Users/Varun/.local/bin/lld-link.exe"
+      - "C:/Users/Varun/.local/bin/lld-link"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/lld-link.com"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/lld-link.exe"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/lld-link"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/lld-link.com"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/lld-link.exe"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/lld-link"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/lld-link.com"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/lld-link.exe"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/lld-link"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/lld-link.com"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/lld-link.exe"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/lld-link"
+      - "C:/Users/Varun/AppData/Roaming/npm/lld-link.com"
+      - "C:/Users/Varun/AppData/Roaming/npm/lld-link.exe"
+      - "C:/Users/Varun/AppData/Roaming/npm/lld-link"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/lld-link.com"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/lld-link.exe"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/lld-link"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/lld-link.com"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/lld-link.exe"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/lld-link"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "C:\\Python314\\Scripts\\"
+        - "C:\\Python314\\"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\ProgramData\\chocolatey\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Users\\Varun\\AppData\\Local\\agy\\bin"
+        - "C:\\Users\\Varun\\.local\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\Varun\\AppData\\Local\\Programs\\Antigravity\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Google\\Cloud SDK\\google-cloud-sdk\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Programs\\Antigravity IDE\\bin"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\npm"
+        - "c:\\Users\\Varun\\.antigravity-ide\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\Python\\Python314\\Scripts"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\Python\\Python314\\Scripts"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:247 (find_program)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCXXCompiler.cmake:206 (include)"
+      - "CMakeLists.txt:2 (project)"
+    mode: "program"
+    variable: "CMAKE_LINKER"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: false
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "link"
+    candidate_directories:
+      - "C:/Python314/Scripts/"
+      - "C:/Python314/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/ProgramData/chocolatey/bin/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/nodejs/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Users/Varun/AppData/Local/agy/bin/"
+      - "C:/Users/Varun/.local/bin/"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/"
+      - "C:/Users/Varun/AppData/Roaming/npm/"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/"
+    searched_directories:
+      - "C:/Python314/Scripts/link.com"
+      - "C:/Python314/Scripts/link.exe"
+      - "C:/Python314/Scripts/link"
+      - "C:/Python314/link.com"
+      - "C:/Python314/link.exe"
+      - "C:/Python314/link"
+      - "C:/Windows/System32/link.com"
+      - "C:/Windows/System32/link.exe"
+      - "C:/Windows/System32/link"
+      - "C:/Windows/link.com"
+      - "C:/Windows/link.exe"
+      - "C:/Windows/link"
+      - "C:/Windows/System32/wbem/link.com"
+      - "C:/Windows/System32/wbem/link.exe"
+      - "C:/Windows/System32/wbem/link"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/link.com"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/link.exe"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/link"
+      - "C:/Windows/System32/OpenSSH/link.com"
+      - "C:/Windows/System32/OpenSSH/link.exe"
+      - "C:/Windows/System32/OpenSSH/link"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/link.com"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/link.exe"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/link"
+      - "C:/ProgramData/chocolatey/bin/link.com"
+      - "C:/ProgramData/chocolatey/bin/link.exe"
+      - "C:/ProgramData/chocolatey/bin/link"
+      - "C:/Program Files/Git/cmd/link.com"
+      - "C:/Program Files/Git/cmd/link.exe"
+      - "C:/Program Files/Git/cmd/link"
+      - "C:/Program Files/nodejs/link.com"
+      - "C:/Program Files/nodejs/link.exe"
+      - "C:/Program Files/nodejs/link"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/link.com"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/link.exe"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/link"
+      - "C:/Users/Varun/AppData/Local/agy/bin/link.com"
+      - "C:/Users/Varun/AppData/Local/agy/bin/link.exe"
+      - "C:/Users/Varun/AppData/Local/agy/bin/link"
+      - "C:/Users/Varun/.local/bin/link.com"
+      - "C:/Users/Varun/.local/bin/link.exe"
+      - "C:/Users/Varun/.local/bin/link"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/link.com"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/link.exe"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/link"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/link.com"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/link.exe"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/link"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/link.com"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/link.exe"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/link"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/link.com"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/link.exe"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/link"
+      - "C:/Users/Varun/AppData/Roaming/npm/link.com"
+      - "C:/Users/Varun/AppData/Roaming/npm/link.exe"
+      - "C:/Users/Varun/AppData/Roaming/npm/link"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/link.com"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/link.exe"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/link"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/link.com"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/link.exe"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/link"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "C:\\Python314\\Scripts\\"
+        - "C:\\Python314\\"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\ProgramData\\chocolatey\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Users\\Varun\\AppData\\Local\\agy\\bin"
+        - "C:\\Users\\Varun\\.local\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\Varun\\AppData\\Local\\Programs\\Antigravity\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Google\\Cloud SDK\\google-cloud-sdk\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Programs\\Antigravity IDE\\bin"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\npm"
+        - "c:\\Users\\Varun\\.antigravity-ide\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\Python\\Python314\\Scripts"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\Python\\Python314\\Scripts"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:247 (find_program)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCXXCompiler.cmake:206 (include)"
+      - "CMakeLists.txt:2 (project)"
+    mode: "program"
+    variable: "CMAKE_MT"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: false
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "mt"
+    candidate_directories:
+      - "C:/Python314/Scripts/"
+      - "C:/Python314/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/ProgramData/chocolatey/bin/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/nodejs/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Users/Varun/AppData/Local/agy/bin/"
+      - "C:/Users/Varun/.local/bin/"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/"
+      - "C:/Users/Varun/AppData/Roaming/npm/"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/"
+    searched_directories:
+      - "C:/Python314/Scripts/mt.com"
+      - "C:/Python314/Scripts/mt.exe"
+      - "C:/Python314/Scripts/mt"
+      - "C:/Python314/mt.com"
+      - "C:/Python314/mt.exe"
+      - "C:/Python314/mt"
+      - "C:/Windows/System32/mt.com"
+      - "C:/Windows/System32/mt.exe"
+      - "C:/Windows/System32/mt"
+      - "C:/Windows/mt.com"
+      - "C:/Windows/mt.exe"
+      - "C:/Windows/mt"
+      - "C:/Windows/System32/wbem/mt.com"
+      - "C:/Windows/System32/wbem/mt.exe"
+      - "C:/Windows/System32/wbem/mt"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/mt.com"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/mt.exe"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/mt"
+      - "C:/Windows/System32/OpenSSH/mt.com"
+      - "C:/Windows/System32/OpenSSH/mt.exe"
+      - "C:/Windows/System32/OpenSSH/mt"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/mt.com"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/mt.exe"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/mt"
+      - "C:/ProgramData/chocolatey/bin/mt.com"
+      - "C:/ProgramData/chocolatey/bin/mt.exe"
+      - "C:/ProgramData/chocolatey/bin/mt"
+      - "C:/Program Files/Git/cmd/mt.com"
+      - "C:/Program Files/Git/cmd/mt.exe"
+      - "C:/Program Files/Git/cmd/mt"
+      - "C:/Program Files/nodejs/mt.com"
+      - "C:/Program Files/nodejs/mt.exe"
+      - "C:/Program Files/nodejs/mt"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/mt.com"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/mt.exe"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/mt"
+      - "C:/Users/Varun/AppData/Local/agy/bin/mt.com"
+      - "C:/Users/Varun/AppData/Local/agy/bin/mt.exe"
+      - "C:/Users/Varun/AppData/Local/agy/bin/mt"
+      - "C:/Users/Varun/.local/bin/mt.com"
+      - "C:/Users/Varun/.local/bin/mt.exe"
+      - "C:/Users/Varun/.local/bin/mt"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/mt.com"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/mt.exe"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/mt"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/mt.com"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/mt.exe"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/mt"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/mt.com"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/mt.exe"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/mt"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/mt.com"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/mt.exe"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/mt"
+      - "C:/Users/Varun/AppData/Roaming/npm/mt.com"
+      - "C:/Users/Varun/AppData/Roaming/npm/mt.exe"
+      - "C:/Users/Varun/AppData/Roaming/npm/mt"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/mt.com"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/mt.exe"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/mt"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/mt.com"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/mt.exe"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/mt"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "C:\\Python314\\Scripts\\"
+        - "C:\\Python314\\"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\ProgramData\\chocolatey\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Users\\Varun\\AppData\\Local\\agy\\bin"
+        - "C:\\Users\\Varun\\.local\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\Varun\\AppData\\Local\\Programs\\Antigravity\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Google\\Cloud SDK\\google-cloud-sdk\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Programs\\Antigravity IDE\\bin"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\npm"
+        - "c:\\Users\\Varun\\.antigravity-ide\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\Python\\Python314\\Scripts"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\Python\\Python314\\Scripts"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:247 (find_program)"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/site-packages/cmake/data/share/cmake-4.4/Modules/CMakeDetermineCXXCompiler.cmake:206 (include)"
+      - "CMakeLists.txt:2 (project)"
+    mode: "program"
+    variable: "CMAKE_AR"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: false
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "lib"
+    candidate_directories:
+      - "C:/Python314/Scripts/"
+      - "C:/Python314/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/ProgramData/chocolatey/bin/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/nodejs/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Users/Varun/AppData/Local/agy/bin/"
+      - "C:/Users/Varun/.local/bin/"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/"
+      - "C:/Users/Varun/AppData/Roaming/npm/"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/"
+    searched_directories:
+      - "C:/Python314/Scripts/lib.com"
+      - "C:/Python314/Scripts/lib.exe"
+      - "C:/Python314/Scripts/lib"
+      - "C:/Python314/lib.com"
+      - "C:/Python314/lib.exe"
+      - "C:/Python314/lib"
+      - "C:/Windows/System32/lib.com"
+      - "C:/Windows/System32/lib.exe"
+      - "C:/Windows/System32/lib"
+      - "C:/Windows/lib.com"
+      - "C:/Windows/lib.exe"
+      - "C:/Windows/lib"
+      - "C:/Windows/System32/wbem/lib.com"
+      - "C:/Windows/System32/wbem/lib.exe"
+      - "C:/Windows/System32/wbem/lib"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/lib.com"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/lib.exe"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/lib"
+      - "C:/Windows/System32/OpenSSH/lib.com"
+      - "C:/Windows/System32/OpenSSH/lib.exe"
+      - "C:/Windows/System32/OpenSSH/lib"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lib.com"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lib.exe"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lib"
+      - "C:/ProgramData/chocolatey/bin/lib.com"
+      - "C:/ProgramData/chocolatey/bin/lib.exe"
+      - "C:/ProgramData/chocolatey/bin/lib"
+      - "C:/Program Files/Git/cmd/lib.com"
+      - "C:/Program Files/Git/cmd/lib.exe"
+      - "C:/Program Files/Git/cmd/lib"
+      - "C:/Program Files/nodejs/lib.com"
+      - "C:/Program Files/nodejs/lib.exe"
+      - "C:/Program Files/nodejs/lib"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lib.com"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lib.exe"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lib"
+      - "C:/Users/Varun/AppData/Local/agy/bin/lib.com"
+      - "C:/Users/Varun/AppData/Local/agy/bin/lib.exe"
+      - "C:/Users/Varun/AppData/Local/agy/bin/lib"
+      - "C:/Users/Varun/.local/bin/lib.com"
+      - "C:/Users/Varun/.local/bin/lib.exe"
+      - "C:/Users/Varun/.local/bin/lib"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/lib.com"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/lib.exe"
+      - "C:/Users/Varun/AppData/Local/Microsoft/WindowsApps/lib"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/lib.com"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/lib.exe"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity/bin/lib"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/lib.com"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/lib.exe"
+      - "C:/Users/Varun/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/lib"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/lib.com"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/lib.exe"
+      - "C:/Users/Varun/AppData/Local/Programs/Antigravity IDE/bin/lib"
+      - "C:/Users/Varun/AppData/Roaming/npm/lib.com"
+      - "C:/Users/Varun/AppData/Roaming/npm/lib.exe"
+      - "C:/Users/Varun/AppData/Roaming/npm/lib"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/lib.com"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/lib.exe"
+      - "C:/Users/Varun/.antigravity-ide/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/lib"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/lib.com"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/lib.exe"
+      - "C:/Users/Varun/AppData/Roaming/Python/Python314/Scripts/lib"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "C:\\Python314\\Scripts\\"
+        - "C:\\Python314\\"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\ProgramData\\chocolatey\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Users\\Varun\\AppData\\Local\\agy\\bin"
+        - "C:\\Users\\Varun\\.local\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\Varun\\AppData\\Local\\Programs\\Antigravity\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Google\\Cloud SDK\\google-cloud-sdk\\bin"
+        - "C:\\Users\\Varun\\AppData\\Local\\Programs\\Antigravity IDE\\bin"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\npm"
+        - "c:\\Users\\Varun\\.antigravity-ide\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\Python\\Python314\\Scripts"
+        - "C:\\Users\\Varun\\AppData\\Roaming\\Python\\Python314\\Scripts"
+...
