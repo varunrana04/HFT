@@ -15,7 +15,8 @@ import collections
 from statsmodels.tsa.stattools import adfuller
 import joblib
 import numpy as np
-import sentiment_pipeline
+import glob
+import zipfile
 
 # ─── Load Engine ───────────────────────────────────────────────
 from engine_loader import load_engine
@@ -54,6 +55,20 @@ with open(PaperState.trade_log_file, "w", newline="") as f:
     writer = csv.writer(f)
     writer.writerow(["RunID", "Timestamp", "Side", "Price", "Qty", "Cash", "Inventory", "Equity"])
 
+def compress_old_logs(current_run_id):
+    old_csvs = [f for f in glob.glob("paper_trades_*.csv") if current_run_id not in f]
+    for csv_file in old_csvs:
+        try:
+            zip_name = csv_file.replace('.csv', '.zip')
+            with zipfile.ZipFile(zip_name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                zipf.write(csv_file)
+            os.remove(csv_file)
+            print(f"[INFO] Compressed old log {csv_file} -> {zip_name}")
+        except Exception as e:
+            print(f"[ERROR] Failed to compress {csv_file}: {e}")
+
+compress_old_logs(PaperState.run_id)
+
 print("DEBUG: Before FastAPI")
 # Global variable for sentiment model
 sentiment_model = None
@@ -66,11 +81,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(binance_ws_loop())
     asyncio.create_task(ml_bridge_loop())
     
-    # Start sentiment task
-    if sentiment_model is not None:
-        asyncio.create_task(sentiment_pipeline.fetch_news(sentiment_model))
-    else:
-        print("[WARNING] FinBERT model not loaded. Skipping sentiment task.")
+    # Start sentiment task (disabled to save RAM in free cloud tier)
     yield
 
 app = FastAPI(title="HFT Quant Cockpit API", lifespan=lifespan)

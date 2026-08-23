@@ -22,6 +22,7 @@ aiohttp>=3.9.0,<4.0.0          # Async HTTP (fallback REST + health checks)
 # ─── Statistics & Modeling ────────────────────────────────────
 scipy>=1.11.0,<2.0.0           # Statistical functions
 statsmodels>=0.14.0,<1.0.0     # Cointegration, OU estimation
+hmmlearn>=0.3.0,<1.0.0         # HMM Regime detection model
 
 # ─── Visualization ────────────────────────────────────────────
 matplotlib>=3.8.0,<4.0.0       # Equity curves, drawdowns, feature importance
