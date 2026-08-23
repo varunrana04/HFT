@@ -117,6 +117,18 @@ class StrategyEngine:
     def load_model(self, path):
         self._weights = _load_signal_weights(path)
         return True
+        
+    def set_weights(self, weights_list):
+        if len(weights_list) >= 6:
+            self._weights = {
+                "w_obi": weights_list[0],
+                "w_vpin": weights_list[1],
+                "w_vol": weights_list[2],
+                "w_spread": weights_list[3],
+                "w_ofi": weights_list[4],
+                "w_microprice": weights_list[5],
+                "w_bias": weights_list[6] if len(weights_list) > 6 else 0.0
+            }
 
     def has_model(self):
         return bool(self._weights)
