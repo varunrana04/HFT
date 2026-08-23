@@ -229,7 +229,7 @@ from fastapi.responses import FileResponse
 
 @app.get("/")
 async def get_dashboard():
-    return FileResponse(os.path.join(os.path.dirname(__file__), "..", "dashboard.html"))
+    return FileResponse(os.path.join(os.path.dirname(__file__), "..", "dashboard", "standalone.html"))
 
 @app.get("/health")
 async def health_check():
