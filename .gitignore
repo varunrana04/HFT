@@ -1,0 +1,66 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# ── C++ Build / Compilation ───────────────────────────────────────────────────
+build/
+*.pyd
+*.so
+*.dll
+*.o
+*.obj
+CMakeCache.txt
+CMakeFiles/
+
+# ── Virtual Environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── IDEs & OS ─────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.cache/
+.DS_Store
+Thumbs.db
+
+# ── Data — raw files (too large for git) ──────────────────────────────────────
+data/raw/
+data/*.zip
+data/*.csv
+
+# ── Results — generated experiment outputs ────────────────────────────────────
+results/charts/
+results/paper_trades/
+results/report_charts/
+results/walk_forward/fold_*/
+results/walk_forward/wf_*.png
+results/walk_forward/wf_metrics.csv
+results/*.png
+results/*.csv
+results/live_session_*
+
+# ── Models — keep production/ in git (small, versioned) ──────────────────────
+# models/production/  <-- intentionally tracked
+models/*.onnx
+models/*.txt
+models/*.png
+
+# ── Logs & temporary files ────────────────────────────────────────────────────
+logs/
+*.log
+*.sqlite
+
+# ── Node / npm (used for report generation only) ─────────────────────────────
+node_modules/
+package-lock.json
+
+# ── Docs — keep source .md; ignore generated HTML intermediates ───────────────
+docs/*.html
+
+# 🛑 Portable Dependencies & Locks 🛑
+portable_python/
+toolchain/
+*.lock

@@ -1,0 +1,33 @@
+{
+  "n_folds": 4,
+  "mean_oos_sharpe": 1358.0911353940996,
+  "median_oos_sharpe": 1361.0583302431066,
+  "std_oos_sharpe": 227.42563257251786,
+  "sharpe_stability": 227.42563257251786,
+  "min_oos_sharpe": 1033.7978522691465,
+  "max_oos_sharpe": 1676.450028821039,
+  "pct_positive_folds": 100.0,
+  "pct_signal_folds": 100.0,
+  "concat_sharpe": 760.7012642790944,
+  "mean_hit_rate": 0.6379764587410519,
+  "mean_pearson_r": 0.2803881646782271,
+  "mean_opt_threshold": 5.931577351863128e-05,
+  "recommended_threshold": 6.375033427880042e-05,
+  "best_fold_idx": 2,
+  "best_fold_oos_sharpe": 1676.450028821039,
+  "best_fold_dir": "C:\\Users\\Varun\\Downloads\\HFT\\results/walk_forward\\fold_05",
+  "per_fold_sharpes": [
+    1347.7627217668235,
+    1033.7978522691465,
+    1676.450028821039,
+    1374.3539387193898
+  ],
+  "per_fold_thresholds": [
+    3.3916728713002015e-05,
+    5.7173010311282443e-05,
+    7.032765824631841e-05,
+    7.584569680392225e-05
+  ],
+  "total_oos_rows": 1332664,
+  "total_train_rows": 3298361
+}

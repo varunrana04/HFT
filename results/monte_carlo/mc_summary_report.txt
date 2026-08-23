@@ -1,0 +1,62 @@
+
+========================================================================
+  INSTITUTIONAL MONTE CARLO SIMULATION — BTCUSDT MARKET MAKER
+  HFT Engine | Single-Asset Specialization | Sell-Side Market Making
+========================================================================
+
+SIMULATION SETUP
+  Paths            : 5,000
+  Horizon          : 8,640 ticks (~1 trading days @ 100ms ticks)
+  Capital          : $100,000
+  BTC price (init) : $60,000
+  Annual BTC vol   : 70%  (calibrated to 2024 BTCUSDT)
+  Adverse sel. rate: 18%  (VPIN-based informed-flow estimate)
+  Mean spread      : 2.0 bps  ($12.00/BTC)
+  Fill probability : 70%  (queue-position model)
+  Runtime          : 3006.1s
+
+RETURN METRICS
+  Median           : +0.23%
+  Mean             : +0.23%
+  P10 / P90        : +0.06% / +0.39%
+  P5  / P95        : +0.01% / +0.44%
+  Skewness         : -0.048
+  Excess Kurtosis  : 0.147
+
+RISK-ADJUSTED PERFORMANCE
+  Median Sharpe    : 39.350   [Good >1  |  Strong >2  |  Exceptional >3]
+  Mean Sharpe      : 39.513
+  Sharpe P10/P90   : 10.403 / 68.754
+  % paths Sharpe>1 : 95.7%
+  % paths Sharpe>2 : 95.2%
+  Median Calmar    : 2.435   (annual return / max drawdown)
+
+DRAWDOWN ANALYSIS
+  Median Max DD    : 0.09%
+  95th pct Max DD  : 0.17%
+  P(DD < 5%)       : 100.0%  (circuit breaker fires below this)
+  P(DD < 10%)      : 100.0%
+
+VALUE AT RISK
+  VaR  90%         : 0.06% loss
+  VaR  95%         : 0.01% loss
+  VaR  99%         : 0.09% loss
+  CVaR 99%         : 0.14% (Expected Shortfall)
+
+PROBABILITY ANALYSIS
+  P(Profit)        : 95.9%
+  P(Beat S&P 500)  : 0.0%   (>25% annual)
+  Mean Win Rate    : 46.7%
+  Mean Adverse Sel : 18.0%
+
+MARKET-MAKING ECONOMICS  (Aiden's framework — sell-side MM)
+  Half-spread/fill : ~$6.00 / BTC
+  Adverse sel cost : ~$21.00 / BTC when hit by informed flow
+  Net edge/fill    : ~$2.22 / BTC  (after adverse selection)
+  Kelly range      : 0.5% – 5.0% AUM per trade
+  Risk/Reward      : Small edge, large quantity, repeated thousands of times/day
+                     -> mirrors Aiden's description: $0.1–$0.9/share × massive qty
+
+  Generated: 2026-08-17 00:12:01
+  Output:    results/monte_carlo/
+========================================================================
