@@ -97,17 +97,14 @@ print("DEBUG: Before StrategyConfig")
 config = hft_engine.StrategyConfig()
 config.initial_capital = 10000000.0
 config.min_warmup_ticks = 1000  # Institutional: full warmup so all feature buffers are populated
-config.max_position_pct = 0.15  # 15% max, Kelly-scaled per trade
+config.max_position_pct = 0.10  # Reduced from 15% to 10% to minimize inventory skew risk in deployment
 
-# ── Institutional Thresholds (Red-Zone Optimized) ──────────
-# spread_alpha_multiplier raised from 0.05 → 0.14:
-#   at 3.5 bps spread the entry threshold rises by +0.49,
-#   making entry nearly impossible in the adverse-selection zone
-#   identified in the 3D Alpha Surface red region.
-config.alpha_entry_threshold = 0.05
-config.alpha_short_multiplier = 1.2
-config.spread_alpha_multiplier = 0.14   # was 0.05 — 3D surface fix
-config.min_take_profit_bps    = 5.0
+# ── Institutional Thresholds (Pre-Deployment Optimized) ──────────
+# Tightened entry thresholds to increase win-rate and reduce simulated fees
+config.alpha_entry_threshold = 0.08     # Raised from 0.05 for higher conviction entries
+config.alpha_short_multiplier = 1.3     # Raised from 1.2 to be even more selective on shorts
+config.spread_alpha_multiplier = 0.18   # Raised from 0.14 to heavily penalize trading in wide spreads
+config.min_take_profit_bps    = 5.0     # Keep at 5 bps
 
 # ── Futures Fee Model (USDM Perp, Binance VIP0) ─────────────────
 # Maker: -0.5 bps (rebate), Taker: 1.5 bps. Strategy targets maker fills.
@@ -196,13 +193,13 @@ async def binance_ws_loop():
                             for record in new_records:
                                 side_str = "BUY" if record.side == hft_engine.Side.BID else "SELL"
                                 px   = record.exit_price / 1e8 if record.exit_price > 0 else record.entry_price / 1e8
-                                qty_ = abs(record.quantity)
+                                qty_ = abs(record.quantity) / 1e8
                                 with open(PaperState.trade_log_file, "a", newline="") as f:
                                     writer = csv.writer(f)
                                     writer.writerow([
                                         PaperState.run_id, time.time(), side_str,
                                         f"{px:.2f}", f"{qty_:.4f}", f"{funding_rate:.6f}",
-                                        f"{engine.position():.4f}", f"{engine.equity():.2f}"
+                                        f"{engine.position() / 1e8:.4f}", f"{engine.equity():.2f}"
                                     ])
                             PaperState.journal_idx = len(journal)
 
@@ -277,7 +274,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "best_bid": latest_book.best_bid_price / 1e8,
                 "best_ask": latest_book.best_ask_price / 1e8,
                 "equity": equity,
-                "inventory": engine.position(),
+                "inventory": engine.position() / 1e8,
                 "cash": 0,
                 "funding_rate": funding_rate,
                 "mark_price": mark_price

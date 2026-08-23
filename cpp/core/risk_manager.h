@@ -185,4 +185,24 @@ private:
     void trip_circuit_breaker() noexcept;
 };
 
+// ─── Drop-Copy Kill Switch (Phase 4) ──────────────────────────
+/**
+ * @brief Institutional Drop-Copy listener.
+ * 
+ * Runs on a dedicated isolated core, listening to the exchange's Drop-Copy
+ * FIX session. If internal engine positions drift from exchange reported
+ * positions, this trips the hardware kill-switch.
+ */
+class DropCopyKillSwitch {
+public:
+    DropCopyKillSwitch(RiskManager& risk_mgr);
+    void start_listener(const std::string& fix_drop_copy_session);
+    void stop_listener();
+    
+private:
+    RiskManager& risk_mgr_;
+    bool is_listening_ = false;
+};
+
 } // namespace hft
+

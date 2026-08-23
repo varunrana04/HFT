@@ -11,9 +11,9 @@ if(MSVC)
     set(CMAKE_CXX_FLAGS_DEBUG "/Zi /Od /fsanitize=address")
     add_compile_options(/W4 /permissive-)
 else()
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
-    set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -fsanitize=address,undefined")
-    add_compile_options(-Wall -Wextra -Wpedantic -Wconversion -Wshadow)
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -mavx2 -mfma -mno-xop -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -mavx2 -mfma -mno-xop -fsanitize=address,undefined")
+    add_compile_options(-Wall -Wextra -Wpedantic -Wconversion -Wshadow -static-libgcc -static-libstdc++)
 endif()
 
 # ─── ONNX Runtime (optional) ──────────────────────────────────
@@ -149,6 +149,9 @@ if(HFT_BUILD_PYTHON)
         pybind11_add_module(hft_engine cpp/bindings/py_engine.cpp)
         target_link_libraries(hft_engine PRIVATE hft_core)
         target_include_directories(hft_engine PRIVATE cpp/core)
+        if(NOT MSVC)
+            target_link_options(hft_engine PRIVATE -static-libgcc -static-libstdc++)
+        endif()
         message(STATUS "Python ${Python3_VERSION} found — building Python bindings")
 
         # Copy MinGW runtime DLLs next to the .pyd so Python can load it

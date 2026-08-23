@@ -378,6 +378,27 @@ int main() {
         results.push_back(compute_stats("Full Pipeline (Tick-to-Trade)", latencies));
     }
 
+    // ── 9. AVX2 SIMD Dot Product ────────────────────────────
+    {
+        std::vector<int64_t> latencies;
+        latencies.reserve(ITERATIONS);
+        
+        std::vector<double> a(256, 1.0);
+        std::vector<double> b(256, 1.0);
+        
+        for (int i = 0; i < ITERATIONS; ++i) {
+            a[0] = static_cast<double>(i); // Prevent optimization out
+            int64_t elapsed;
+            { 
+                hft::ScopedTimer timer(elapsed); 
+                double res = hft::simd_dot_product_avx2(a.data(), b.data(), a.size()); 
+                (void)res; // suppress unused warning
+            }
+            latencies.push_back(elapsed);
+        }
+        results.push_back(compute_stats("SIMD AVX2 Dot Product (N=256)", latencies));
+    }
+
     // ── Print Results ───────────────────────────────────────
 
     std::cout << "=== Console Output ===\n" << std::endl;
@@ -393,7 +414,7 @@ int main() {
 
     // ── Summary ─────────────────────────────────────────────
 
-    auto& full = results.back();
+    auto& full = results[7]; // Full Pipeline is index 7
     std::cout << "\n╔══════════════════════════════════════════════════╗" << std::endl;
     std::cout << "║  FULL PIPELINE SUMMARY (Tick-to-Trade)           ║" << std::endl;
     std::cout << "╠══════════════════════════════════════════════════╣" << std::endl;

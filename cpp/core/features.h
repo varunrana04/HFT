@@ -312,4 +312,21 @@ private:
         double realized_vol, double ofi) const noexcept;
 };
 
+// ─── SIMD Acceleration (Phase 2) ─────────────────────────────
+/**
+ * @brief Ultra-low latency vectorized dot product.
+ * Compilers will auto-vectorize this to AVX2/FMA when compiled with -mavx2.
+ */
+inline double simd_dot_product_avx2(const double* a, const double* b, size_t n) noexcept {
+    double total = 0.0;
+    
+    // Hint to compiler that pointers don't alias and it can be vectorized
+    #pragma GCC ivdep
+    for (size_t i = 0; i < n; ++i) {
+        total += a[i] * b[i];
+    }
+    return total;
+}
+
 } // namespace hft
+

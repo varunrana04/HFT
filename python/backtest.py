@@ -998,11 +998,11 @@ def main():
         epilog="""
 Examples:
     python backtest.py --data data/BTCUSDT_trades.csv
-    python backtest.py --data data/BTCUSDT_trades.csv --capital 50000 --max-rows 100000
+    python backtest.py --data data/BTCUSDT_trades.csv
         """
     )
-    parser.add_argument('--data', type=str, required=True,
-                        help='Path to Binance trades CSV data file')
+    parser.add_argument('--data', type=str,
+                        help='Path to Binance trades CSV (or simplified Trades CSV)')
     parser.add_argument('--book', type=str, default=None, help='Path to Tardis L2 book CSV (enables L2 ingestion)')
     parser.add_argument('--capital', type=float, default=10000000.0,
                         help='Initial capital (default: 10000000)')
@@ -1027,6 +1027,8 @@ Examples:
                         help='Inventory skew factor (default: 0.5)')
     parser.add_argument('--delay', type=float, default=1.0,
                         help='Queue delay probability (default: 1.0 = instant fill)')
+    parser.add_argument('--benchmark-avx2', action='store_true',
+                        help='Run an AVX2 SIMD backtester benchmark on 10 million rows and exit')
     
     args = parser.parse_args()
     
@@ -1038,6 +1040,39 @@ Examples:
     print(f"  Capital: ${args.capital:,.2f}")
     print(f"  Threshold: {args.threshold}")
     
+    if args.benchmark_avx2:
+        if not HAS_CPP_ENGINE:
+            print("[ERROR] C++ engine required for AVX2 benchmarking.")
+            sys.exit(1)
+        print(f"\n  [AVX2 Benchmark] Generating 10,000,000 synthetic feature rows...")
+        import numpy as np
+        N = 10_000_000
+        
+        # Test 1: Simple dot product loop (sanity check)
+        a = np.random.randn(256).astype(np.float64)
+        b = np.random.randn(256).astype(np.float64)
+        print(f"  [AVX2 Benchmark] Running 1,000,000 iterations of simd_dot_product...")
+        t0_bench = time.time()
+        for _ in range(1_000_000):
+            _ = hft_engine.simd_dot_product(a, b)
+        elapsed_bench = time.time() - t0_bench
+        print(f"  [AVX2 Benchmark] Completed 1M iterations in {elapsed_bench*1000:.2f} ms")
+        
+        # Test 2: Bulk AVX2 Processing
+        features = np.random.randn(N, 6).astype(np.float64)
+        weights = np.random.randn(6).astype(np.float64)
+        
+        print(f"  [AVX2 Benchmark] Running hft_engine.process_bulk_features_avx2 on {N:,} rows...")
+        t0_bench = time.time()
+        result_alphas = hft_engine.process_bulk_features_avx2(features, weights)
+        elapsed_bench = time.time() - t0_bench
+        
+        print(f"  [AVX2 Benchmark] Completed bulk processing in {elapsed_bench*1000:.2f} ms")
+        print(f"  [AVX2 Benchmark] Throughput: {(N / elapsed_bench) / 1e6:.1f} Million rows/sec")
+        print(f"  [AVX2 Benchmark] Result Alphas Shape: {result_alphas.shape}")
+        sys.exit(0)
+
+        
     t0 = time.time()
     
     # ── Feature Dump Mode — stream directly, skip loading all ticks ──

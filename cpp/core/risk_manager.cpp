@@ -182,4 +182,22 @@ bool RiskManager::check_toxicity_halt(double sentiment, double vol) noexcept {
     return true; // True means safe to trade
 }
 
+// ─── Drop-Copy Kill Switch (Phase 4) ─────────────────────────
+
+DropCopyKillSwitch::DropCopyKillSwitch(RiskManager& risk_mgr)
+    : risk_mgr_(risk_mgr) {}
+
+void DropCopyKillSwitch::start_listener(const std::string& fix_drop_copy_session) {
+    is_listening_ = true;
+    // Stub: In production, this would bind a thread to an isolated core 
+    // and listen for FIX ExecutionReports. If there is a position mismatch 
+    // or fatal exchange message, it calls risk_mgr_.trip_circuit_breaker()
+    // or triggers a hardware kill switch via PCIe.
+}
+
+void DropCopyKillSwitch::stop_listener() {
+    is_listening_ = false;
+}
+
 } // namespace hft
+
