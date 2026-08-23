@@ -1,0 +1,15 @@
+name: HFT Keep-Alive
+
+on:
+  schedule:
+    - cron: "*/10 * * * *" # Runs every 10 minutes
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render deployment
+        run: |
+          echo "Pinging HFT Engine..."
+          curl -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36" -s -o /dev/null -w "HTTP Status: %{http_code}\n" https://hft-vgaq.onrender.com/health
