@@ -231,6 +231,11 @@ from fastapi.responses import FileResponse
 async def get_dashboard():
     return FileResponse(os.path.join(os.path.dirname(__file__), "..", "dashboard.html"))
 
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "timestamp": time.time(), "is_trading": PaperState.is_trading}
+
+
 @app.post("/api/trade_control")
 async def trade_control(payload: TradeControl):
     PaperState.is_trading = payload.is_trading
@@ -384,22 +389,23 @@ if __name__ == "__main__":
     import socket
 
     async def run_server():
-        # Pre-bind with SO_REUSEADDR so we always claim port 8000 even after rapid restarts
+        # Bind to 0.0.0.0 and use PORT environment variable for Railway compatibility
+        host = os.environ.get("HOST", "0.0.0.0")
+        port = int(os.environ.get("PORT", 8080))
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            sock.bind(('127.0.0.1', 8000))
-            port = 8000
+            sock.bind((host, port))
         except OSError:
             sock.close()
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind(('127.0.0.1', 0))   # OS picks any free port
+            sock.bind((host, 0))   # OS picks any free port
             port = sock.getsockname()[1]
-            print(f"[INFO] Port 8000 unavailable, using port {port}.")
+            print(f"[INFO] Requested port unavailable, using fallback port {port}.")
         sock.listen(128)
-        print(f"[INFO] Dashboard available at: http://127.0.0.1:{port}/")
-        config = uvicorn.Config(app=app, host="127.0.0.1", port=port, log_level="info")
+        print(f"[INFO] Dashboard available at: http://{host}:{port}/")
+        config = uvicorn.Config(app=app, host=host, port=port, log_level="info")
         server = uvicorn.Server(config)
         await server.serve(sockets=[sock])
             
