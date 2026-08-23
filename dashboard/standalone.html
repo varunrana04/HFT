@@ -371,30 +371,26 @@
             el.className = 'value-medium ' + (value > 0 ? 'val-up' : (value < 0 ? 'val-down' : 'val-neutral'));
         }
 
-        // WebSocket Connection — auto-scans ports 8000-8020 to find the live server
+        // WebSocket Connection
         let ws;
-        let currentPort = 8000;
-        const MAX_PORT = 8020;
 
-        function connect(port) {
-            port = port || currentPort;
-            ws = new WebSocket(`ws://127.0.0.1:${port}/ws/telemetry`);
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            const wsUrl = `${protocol}//${host}/ws/telemetry`;
+            
+            ws = new WebSocket(wsUrl);
 
             ws.onopen = () => {
-                currentPort = port;
                 setStatus(true);
-                document.title = `HFT Cockpit (:${port})`;
+                document.title = `HFT Cockpit (Live)`;
             };
             ws.onclose = () => {
                 setStatus(false);
-                // Try same port first, then scan forward
-                setTimeout(() => connect(currentPort), 2000);
+                setTimeout(connect, 2000);
             };
             ws.onerror = () => {
                 ws.close();
-                // On error probe next port immediately
-                const nextPort = (port < MAX_PORT) ? port + 1 : 8000;
-                setTimeout(() => connect(nextPort), 500);
             };
             
             ws.onmessage = (event) => {
