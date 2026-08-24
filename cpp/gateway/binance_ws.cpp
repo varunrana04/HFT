@@ -50,15 +50,11 @@ void BinanceWs::poll_loop(
 void BinanceWs::start_live_feed(hft::StrategyEngine* engine) {
     engine_ = engine;
     
-    std::string url = impl_->ws_url + impl_->ws_path;
+    // Use fstream-auth.binance.com to potentially bypass strict Cloudflare WAF blocks on the public endpoint
+    std::string url = "wss://fstream-auth.binance.com/ws";
     impl_->webSocket.setUrl(url);
-    
-    // Let IXWebSocket use the default system CA certificates (now installed via Docker)
-    ix::SocketTLSOptions tlsOptions;
-    impl_->webSocket.setTLSOptions(tlsOptions);
-    
-    // Binance requires ping/pong to keep connection alive
-    impl_->webSocket.setPingInterval(30);
+    // Remove setTLSOptions and setPingInterval to exactly match the working test_ws2.cpp code
+    // IXWebSocket has good defaults.
     
     // Binance does NOT support per-message deflate. Requesting it can cause Cloudflare to drop the connection.
     impl_->webSocket.disablePerMessageDeflate();
@@ -170,7 +166,7 @@ void BinanceWs::start_live_feed(hft::StrategyEngine* engine) {
         }
         else if (msg->type == ix::WebSocketMessageType::Open) {
             std::cout << "[BinanceWs] Connected to Binance! Sending subscribe request..." << std::endl;
-            // Dynamically subscribe to streams to avoid URL parsing bugs in IXWebSocket
+            // Dynamically subscribe to streams
             std::string lower_symbol = symbol_;
             for(auto& c : lower_symbol) c = std::tolower(c);
             
