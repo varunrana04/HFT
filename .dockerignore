@@ -1,4 +1,6 @@
 build/
+build2/
+build_test/
 __pycache__/
 *.pyc
 .git/
@@ -6,3 +8,13 @@ __pycache__/
 .gemini/
 portable_python/
 .venv_clean/
+.venv/
+data/
+results/
+reports/
+scratch/
+notebooks/
+*.exe
+*.dll
+*.o
+exports.txt
