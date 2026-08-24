@@ -20,11 +20,8 @@ struct BinanceWs::Impl {
     std::string ws_path;
     
     Impl(const std::string& symbol) {
-        // We connect to both trade and depth streams via combined stream
-        std::string lower_symbol = symbol;
-        for(auto& c : lower_symbol) c = std::tolower(c);
-        
-        ws_path = "/stream?streams=" + lower_symbol + "@trade/" + lower_symbol + "@depth5@100ms";
+        // Connect to the base websocket endpoint, we will subscribe dynamically on Open
+        ws_path = "/ws";
     }
 };
 
@@ -164,7 +161,13 @@ void BinanceWs::start_live_feed(hft::StrategyEngine* engine) {
             }
         }
         else if (msg->type == ix::WebSocketMessageType::Open) {
-            std::cout << "[BinanceWs] Connected to Binance!" << std::endl;
+            std::cout << "[BinanceWs] Connected to Binance! Sending subscribe request..." << std::endl;
+            // Dynamically subscribe to streams to avoid URL parsing bugs in IXWebSocket
+            std::string lower_symbol = symbol_;
+            for(auto& c : lower_symbol) c = std::tolower(c);
+            
+            std::string payload = R"({"method": "SUBSCRIBE", "params": [")" + lower_symbol + R"(@trade", ")" + lower_symbol + R"(@depth5@100ms"], "id": 1})";
+            impl_->webSocket.send(payload);
         }
         else if (msg->type == ix::WebSocketMessageType::Close) {
             std::cout << "[BinanceWs] Disconnected from Binance!" << std::endl;
