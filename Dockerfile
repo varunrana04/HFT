@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     zlib1g-dev \
     libssl-dev \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uWebSockets & uSockets

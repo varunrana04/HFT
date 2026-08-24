@@ -56,6 +56,11 @@ void BinanceWs::start_live_feed(hft::StrategyEngine* engine) {
     std::string url = impl_->ws_url + impl_->ws_path;
     impl_->webSocket.setUrl(url);
     
+    // Disable TLS verification for the public websocket feed
+    ix::SocketTLSOptions tlsOptions;
+    tlsOptions.caFile = "NONE";
+    impl_->webSocket.setTLSOptions(tlsOptions);
+    
     impl_->webSocket.setOnMessageCallback([this](const ix::WebSocketMessagePtr& msg) {
         if (msg->type == ix::WebSocketMessageType::Message) {
             try {
