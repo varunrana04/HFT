@@ -417,8 +417,8 @@ async def ml_bridge_loop():
             mid_price = (latest_book.best_bid_price + latest_book.best_ask_price) / 2.0 / 1e8
             time_sampled_prices.append(mid_price)
 
-        # 1. ADF Test for StatArb (needs >= 500 prices for reliable test; 5000 buffer for full power)
-        if len(time_sampled_prices) >= 500:
+        # 1. ADF Test for StatArb (needs >= 60 prices for quick demo; 5000 buffer for full power)
+        if len(time_sampled_prices) >= 60:
             try:
                 prices = np.array(time_sampled_prices)
                 res = await loop.run_in_executor(None, adfuller, prices)
