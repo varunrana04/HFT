@@ -285,6 +285,34 @@
                 <canvas id="equityChart"></canvas>
             </div>
         </div>
+        
+        <!-- Recent Trades Table -->
+        <div class="panel col-span-4">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Recent Trades & Positions</span>
+                <button onclick="fetchTrades()" style="background: rgba(59, 130, 246, 0.2); border: 1px solid var(--accent); color: var(--accent); padding: 4px 12px; border-radius: 12px; cursor: pointer; font-size: 0.8rem;">Refresh</button>
+            </div>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--panel-border); color: var(--text-muted);">
+                            <th style="padding: 12px 8px; font-weight: 500;">Time</th>
+                            <th style="padding: 12px 8px; font-weight: 500;">Side</th>
+                            <th style="padding: 12px 8px; font-weight: 500;">Entry</th>
+                            <th style="padding: 12px 8px; font-weight: 500;">Exit</th>
+                            <th style="padding: 12px 8px; font-weight: 500;">Qty (BTC)</th>
+                            <th style="padding: 12px 8px; font-weight: 500;">PnL</th>
+                            <th style="padding: 12px 8px; font-weight: 500;">VPIN</th>
+                            <th style="padding: 12px 8px; font-weight: 500;">Volatility</th>
+                            <th style="padding: 12px 8px; font-weight: 500;">Alpha</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trades-tbody">
+                        <tr><td colspan="9" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading trades...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -516,8 +544,51 @@
             }
         }
 
+        async function fetchTrades() {
+            try {
+                const res = await fetch('/api/trades');
+                const data = await res.json();
+                const tbody = document.getElementById('trades-tbody');
+                
+                if(!data.trades || data.trades.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 20px; color: var(--text-muted);">No trades yet</td></tr>';
+                    return;
+                }
+                
+                let html = '';
+                data.trades.forEach(t => {
+                    const date = new Date(t.timestamp / 1000000);
+                    const timeStr = date.toLocaleTimeString([], { hour12: false }) + '.' + String(date.getMilliseconds()).padStart(3, '0');
+                    
+                    const sideColor = t.side === 'BUY' ? 'var(--positive)' : 'var(--negative)';
+                    const pnlColor = t.pnl > 0 ? 'var(--positive)' : (t.pnl < 0 ? 'var(--negative)' : 'var(--text-main)');
+                    
+                    html += `
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.02);">
+                            <td style="padding: 10px 8px; font-family: 'Fira Code', monospace; color: var(--text-muted);">${timeStr}</td>
+                            <td style="padding: 10px 8px; font-weight: 600; color: ${sideColor};">${t.side}</td>
+                            <td style="padding: 10px 8px; font-family: 'Fira Code', monospace;">${t.entry_price.toFixed(2)}</td>
+                            <td style="padding: 10px 8px; font-family: 'Fira Code', monospace;">${t.exit_price > 0 ? t.exit_price.toFixed(2) : '-'}</td>
+                            <td style="padding: 10px 8px; font-family: 'Fira Code', monospace;">${t.qty.toFixed(4)}</td>
+                            <td style="padding: 10px 8px; font-weight: 600; color: ${pnlColor};">${t.pnl !== 0 ? formatMoney(t.pnl) : '-'}</td>
+                            <td style="padding: 10px 8px;">${t.vpin.toFixed(3)}</td>
+                            <td style="padding: 10px 8px;">${t.volatility.toFixed(4)}</td>
+                            <td style="padding: 10px 8px;">${t.alpha.toFixed(3)}</td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = html;
+            } catch (e) {
+                console.error("Failed to fetch trades:", e);
+            }
+        }
+
         // Init
         connect();
+        fetchTrades();
+        
+        // Auto-refresh trades every 5 seconds
+        setInterval(fetchTrades, 5000);
     </script>
 </body>
 </html>

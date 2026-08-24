@@ -165,16 +165,71 @@ loaded_capital = 10000000.0
 loaded_position = 0
 loaded_realized_pnl = 0.0
 
-if os.path.exists(ACCOUNT_FILE):
+db_conn = None
+db_url = os.environ.get("DATABASE_URL")
+if db_url:
+    try:
+        import psycopg2
+        print(f"[INFO] Connecting to PostgreSQL database...")
+        db_conn = psycopg2.connect(db_url)
+        db_conn.autocommit = True
+        with db_conn.cursor() as cur:
+            # Create tables if they don't exist
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS account_state (
+                    id SERIAL PRIMARY KEY,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    initial_capital FLOAT,
+                    position BIGINT,
+                    realized_pnl FLOAT
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS trades (
+                    id SERIAL PRIMARY KEY,
+                    run_id VARCHAR(50),
+                    timestamp_ns BIGINT,
+                    side VARCHAR(10),
+                    entry_price FLOAT,
+                    exit_price FLOAT,
+                    qty FLOAT,
+                    pnl FLOAT,
+                    slippage FLOAT,
+                    alpha FLOAT,
+                    volatility FLOAT,
+                    vpin FLOAT,
+                    ofi FLOAT,
+                    obi FLOAT,
+                    spread_bps FLOAT,
+                    cvd FLOAT,
+                    hawkes FLOAT,
+                    regime INT
+                );
+            """)
+            # Load state from PostgreSQL
+            cur.execute("SELECT initial_capital, position, realized_pnl FROM account_state ORDER BY updated_at DESC LIMIT 1;")
+            row = cur.fetchone()
+            if row:
+                loaded_capital, loaded_position, loaded_realized_pnl = row
+                print(f"[INFO] Loaded DB state: Capital={loaded_capital}, Pos={loaded_position/1e8}, PnL={loaded_realized_pnl}")
+            else:
+                print(f"[INFO] No existing DB state found. Using defaults.")
+                cur.execute("INSERT INTO account_state (initial_capital, position, realized_pnl) VALUES (%s, %s, %s)",
+                            (loaded_capital, loaded_position, loaded_realized_pnl))
+    except Exception as e:
+        print(f"[ERROR] Database connection failed: {e}")
+        db_conn = None
+
+if not db_conn and os.path.exists(ACCOUNT_FILE):
     try:
         with open(ACCOUNT_FILE, "r") as f:
             state = json.load(f)
             loaded_capital = state.get("initial_capital", 10000000.0)
             loaded_position = state.get("position", 0)
             loaded_realized_pnl = state.get("realized_pnl", 0.0)
-            print(f"[INFO] Loaded account state: Capital={loaded_capital}, Pos={loaded_position/1e8}, PnL={loaded_realized_pnl}")
+            print(f"[INFO] Loaded local state: Capital={loaded_capital}, Pos={loaded_position/1e8}, PnL={loaded_realized_pnl}")
     except Exception as e:
-        print(f"[WARNING] Could not load account state: {e}")
+        print(f"[WARNING] Could not load local state: {e}")
 
 print("DEBUG: Before StrategyConfig")
 # Configure strategy
@@ -247,30 +302,59 @@ async def log_flusher_loop():
     
     while True:
         try:
-            # Flush new journal records to CSV
+            # Flush new journal records to CSV/DB
             journal = engine.trade_journal()
             new_records = journal[PaperState.journal_idx:]
             if new_records:
-                # Save account state on new trades
+                # 1. Update Account State
                 state_dict = {
                     "initial_capital": config.initial_capital,
                     "position": engine.position(),
                     "realized_pnl": engine.realized_pnl()
                 }
+                
+                # Save to PostgreSQL
+                if db_conn:
+                    try:
+                        with db_conn.cursor() as cur:
+                            cur.execute("INSERT INTO account_state (initial_capital, position, realized_pnl) VALUES (%s, %s, %s)",
+                                        (state_dict["initial_capital"], state_dict["position"], state_dict["realized_pnl"]))
+                    except Exception as e:
+                        print(f"[ERROR] Failed to save state to DB: {e}")
+                
+                # Save to local disk fallback
                 try:
                     with open(ACCOUNT_FILE, "w") as sf:
                         json.dump(state_dict, sf)
                 except Exception as e:
-                    print(f"[WARNING] Failed to save account state: {e}")
+                    print(f"[WARNING] Failed to save local account state: {e}")
 
+                # 2. Insert Trades
                 for rec in new_records:
                     side_str = "BUY" if rec.side == hft_engine.Side.BID else "SELL"
+                    fv = engine.last_features()
+                    
+                    # Save to DB
+                    if db_conn:
+                        try:
+                            with db_conn.cursor() as cur:
+                                cur.execute("""
+                                    INSERT INTO trades (
+                                        run_id, timestamp_ns, side, entry_price, exit_price, qty, pnl, slippage,
+                                        alpha, volatility, vpin, ofi, obi, spread_bps, cvd, hawkes, regime
+                                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                """, (
+                                    PaperState.run_id, rec.timestamp_ns, side_str,
+                                    rec.entry_price/1e8, rec.exit_price/1e8, abs(rec.quantity)/1e8,
+                                    rec.pnl, rec.slippage, fv.combined_alpha, fv.realized_vol, fv.vpin,
+                                    fv.ofi, fv.obi, fv.spread_bps, fv.cvd, fv.hawkes_intensity, int(fv.regime)
+                                ))
+                        except Exception as e:
+                            print(f"[ERROR] Failed to insert trade to DB: {e}")
+
+                    # Save to CSV
                     with open(PaperState.trade_log_file, "a", newline="") as f:
                         writer = csv.writer(f)
-                        # Re-calculate features here for the CSV since we can't easily fetch historical features 
-                        # natively from Python in this async loop easily without locking.
-                        # Using last_features() is a slight approximation for the CSV log in this architecture.
-                        fv = engine.last_features()
                         writer.writerow([
                             PaperState.run_id, rec.timestamp_ns, side_str,
                             rec.entry_price/1e8, rec.exit_price/1e8,
@@ -339,6 +423,47 @@ async def trade_control(payload: TradeControl):
 @app.get("/api/trade_status")
 async def get_trade_status():
     return {"is_trading": PaperState.is_trading}
+
+@app.get("/api/trades")
+async def get_recent_trades_api():
+    trades = []
+    if db_conn:
+        try:
+            with db_conn.cursor() as cur:
+                cur.execute("SELECT timestamp_ns, side, entry_price, exit_price, qty, pnl, alpha, volatility, vpin, regime FROM trades ORDER BY timestamp_ns DESC LIMIT 50")
+                for row in cur.fetchall():
+                    trades.append({
+                        "timestamp": row[0],
+                        "side": row[1],
+                        "entry_price": row[2],
+                        "exit_price": row[3],
+                        "qty": row[4],
+                        "pnl": row[5],
+                        "alpha": row[6],
+                        "volatility": row[7],
+                        "vpin": row[8],
+                        "regime": row[9]
+                    })
+        except Exception as e:
+            print(f"[ERROR] DB fetch trades failed: {e}")
+    else:
+        # Fallback to in-memory journal
+        journal = engine.trade_journal()
+        for rec in journal[-50:]:
+            trades.append({
+                "timestamp": rec.timestamp_ns,
+                "side": "BUY" if rec.side == hft_engine.Side.BID else "SELL",
+                "entry_price": rec.entry_price / 1e8,
+                "exit_price": rec.exit_price / 1e8,
+                "qty": abs(rec.quantity) / 1e8,
+                "pnl": rec.pnl,
+                "alpha": 0.0,
+                "volatility": 0.0,
+                "vpin": 0.0,
+                "regime": 0
+            })
+        trades.reverse()
+    return {"trades": trades}
 
 # ─── Dashboard Telemetry Server ────────────────────────────────
 chart_history = collections.deque(maxlen=100)

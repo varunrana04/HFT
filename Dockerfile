@@ -25,8 +25,8 @@ RUN git clone --recursive https://github.com/uNetworking/uWebSockets.git /tmp/uW
 
 # Install simdjson (single-header)
 RUN mkdir -p /usr/local/include/simdjson && \
-    wget https://raw.githubusercontent.com/simdjson/simdjson/master/singleheader/simdjson.h -O /usr/local/include/simdjson/simdjson.h && \
-    wget https://raw.githubusercontent.com/simdjson/simdjson/master/singleheader/simdjson.cpp -O /usr/local/include/simdjson/simdjson.cpp
+    wget https://cdn.jsdelivr.net/gh/simdjson/simdjson@master/singleheader/simdjson.h -O /usr/local/include/simdjson/simdjson.h && \
+    wget https://cdn.jsdelivr.net/gh/simdjson/simdjson@master/singleheader/simdjson.cpp -O /usr/local/include/simdjson/simdjson.cpp
 
 # Download and install ONNX Runtime C++ API
 RUN wget https://github.com/microsoft/onnxruntime/releases/download/v1.16.1/onnxruntime-linux-x64-1.16.1.tgz && \
