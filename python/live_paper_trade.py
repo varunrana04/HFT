@@ -78,20 +78,74 @@ sentiment_model = None
 
 from contextlib import asynccontextmanager
 
+async def python_binance_ws():
+    print("[INFO] Starting pure Python WebSocket fallback...")
+    url = "wss://fstream.binance.com/stream?streams=btcusdt@trade/btcusdt@depth5@100ms"
+    
+    while True:
+        try:
+            print(f"[PythonWs] Connecting to {url}...")
+            async with websockets.connect(url, ping_interval=30, ping_timeout=10, max_size=None) as ws:
+                print("[PythonWs] Connected and subscribed.")
+                
+                async for msg in ws:
+                    try:
+                        data = json.loads(msg)
+                        if "data" in data:
+                            d = data["data"]
+                            stream = data.get("stream", "")
+                            
+                            if "@trade" in stream:
+                                trade = hft_engine.Trade()
+                                trade.timestamp_ns = int(d["T"]) * 1000000
+                                trade.price = int(float(d["p"]) * 1e8)
+                                trade.quantity = int(float(d["q"]) * 1e8)
+                                trade.side = hft_engine.Side.ASK if d["m"] else hft_engine.Side.BID
+                                engine.on_trade(trade, latest_book)
+                                
+                            elif "@depth5" in stream:
+                                latest_book.timestamp_ns = int(time.time() * 1e9)
+                                bids = d.get("b", [])
+                                asks = d.get("a", [])
+                                
+                                if bids:
+                                    latest_book.best_bid_price = int(float(bids[0][0]) * 1e8)
+                                    latest_book.best_bid_qty = int(float(bids[0][1]) * 1e8)
+                                    latest_book.bid_count = len(bids)
+                                if asks:
+                                    latest_book.best_ask_price = int(float(asks[0][0]) * 1e8)
+                                    latest_book.best_ask_qty = int(float(asks[0][1]) * 1e8)
+                                    latest_book.ask_count = len(asks)
+                                    
+                                if latest_book.is_valid():
+                                    engine.on_book_update(latest_book)
+                    except Exception as loop_err:
+                        print(f"[PythonWs] Message loop error: {loop_err}")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[PythonWs] Disconnected: {e}. Reconnecting in 2s...")
+            await asyncio.sleep(2.0)
+
 cpp_gateway = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global cpp_gateway
-    print("[INFO] Initializing C++ Exchange Gateway (IXWebSocket)...")
-    cpp_gateway = hft_engine.BinanceWs("btcusdt")
-    cpp_gateway.start_live_feed(engine)
+    use_cpp = os.environ.get("USE_CPP_GATEWAY", "0") == "1"
+    
+    if use_cpp:
+        print("[INFO] Initializing C++ Exchange Gateway (IXWebSocket)...")
+        cpp_gateway = hft_engine.BinanceWs("btcusdt")
+        cpp_gateway.start_live_feed(engine)
+    else:
+        print("[INFO] C++ Gateway disabled via env var. Using Python fallback.")
+        asyncio.create_task(python_binance_ws())
     
     # Start the background tasks
     asyncio.create_task(log_flusher_loop())
     asyncio.create_task(ml_bridge_loop())
     
-    # Start sentiment task (disabled to save RAM in free cloud tier)
     yield
     
     if cpp_gateway:
@@ -377,6 +431,8 @@ async def ml_bridge_loop():
                 else:
                     engine.set_stat_arb_valid(True)
                     print(f"[ML BRIDGE] ADF stat={adf_stat:.3f} p={p_value:.4f} <= 0.05 — STATIONARY. StatArb ENABLED.")
+            except asyncio.CancelledError:
+                break
             except Exception:
                 pass
         else:
@@ -425,6 +481,8 @@ async def ml_bridge_loop():
                             pass
 
                 print(f"[ML BRIDGE] HMM State {state} | Vol: {fv.realized_vol:.4f} | Alpha: {fv.combined_alpha:.4f} | VPIN: {fv.vpin:.3f}")
+            except asyncio.CancelledError:
+                break
             except Exception:
                 pass
 

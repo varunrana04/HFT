@@ -50,13 +50,13 @@ void BinanceWs::poll_loop(
 void BinanceWs::start_live_feed(hft::StrategyEngine* engine) {
     engine_ = engine;
     
-    // Use fstream-auth.binance.com to potentially bypass strict Cloudflare WAF blocks on the public endpoint
-    std::string url = "wss://fstream-auth.binance.com/ws";
+    // Use standard alternative endpoint to bypass IP blocks on fstream.binance.com
+    std::string url = "wss://stream.binancefuture.com/ws";
     impl_->webSocket.setUrl(url);
-    // Remove setTLSOptions and setPingInterval to exactly match the working test_ws2.cpp code
-    // IXWebSocket has good defaults.
     
-    // Binance does NOT support per-message deflate. Requesting it can cause Cloudflare to drop the connection.
+    ix::SocketTLSOptions tlsOptions;
+    impl_->webSocket.setTLSOptions(tlsOptions);
+    impl_->webSocket.setPingInterval(30);
     impl_->webSocket.disablePerMessageDeflate();
     
     // Add standard headers to prevent Cloudflare/Binance from dropping the connection
