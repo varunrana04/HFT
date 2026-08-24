@@ -60,6 +60,11 @@ void BinanceWs::start_live_feed(hft::StrategyEngine* engine) {
     // Binance requires ping/pong to keep connection alive
     impl_->webSocket.setPingInterval(30);
     
+    // Add standard headers to prevent Cloudflare/Binance from dropping the connection
+    ix::WebSocketHttpHeaders headers;
+    headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
+    impl_->webSocket.setExtraHeaders(headers);
+    
     impl_->webSocket.setOnMessageCallback([this](const ix::WebSocketMessagePtr& msg) {
         if (msg->type == ix::WebSocketMessageType::Message) {
             try {
