@@ -56,10 +56,12 @@ void BinanceWs::start_live_feed(hft::StrategyEngine* engine) {
     std::string url = impl_->ws_url + impl_->ws_path;
     impl_->webSocket.setUrl(url);
     
-    // Disable TLS verification for the public websocket feed
+    // Let IXWebSocket use the default system CA certificates (now installed via Docker)
     ix::SocketTLSOptions tlsOptions;
-    tlsOptions.caFile = "NONE";
     impl_->webSocket.setTLSOptions(tlsOptions);
+    
+    // Binance requires ping/pong to keep connection alive
+    impl_->webSocket.setPingInterval(30);
     
     impl_->webSocket.setOnMessageCallback([this](const ix::WebSocketMessagePtr& msg) {
         if (msg->type == ix::WebSocketMessageType::Message) {
