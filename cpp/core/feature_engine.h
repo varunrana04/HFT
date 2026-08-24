@@ -83,105 +83,35 @@ struct FeatureConfig {
     double rvr_ratio = 1.0; ///< Realized Volatility Regime Ratio
 };
 
-// ─── Online Feature Normalizer ────────────────────────────────
-/**
- * @brief Welford's one-pass online mean/variance estimator for a single
- *        scalar signal.
- *
- * Used to Z-normalize features that live in raw/absolute units
- * (microprice offset from mid, OFI in qty units, spread in bps,
- * realized vol in log-return units).
- *
- * All operations are O(1) and noexcept.
- */
-struct OnlineNormalizer {
-    double   mean     = 0.0;
-    double   M2       = 0.0;   ///< Welford's accumulator
-    int64_t  count    = 0;
 
-    /// Push a new observation and return its Z-score (or 0 if too few obs).
-    double update_and_normalize(double x, int32_t min_obs,
-                                double clamp) noexcept {
-        ++count;
-        double delta  = x - mean;
-        mean         += delta / static_cast<double>(count);
-        double delta2 = x - mean;
-        M2           += delta * delta2;
 
-        // Audit fix: require at least max(2, min_obs) to avoid divide-by-zero
-        // in the variance formula (count-1 == 0 when count == 1)
-        if (count < static_cast<int64_t>(std::max(2, min_obs))) return 0.0;
+struct HawkesProcess {
+    double mu = 0.1;      // Baseline intensity
+    double alpha = 0.5;   // Jump size per trade
+    double beta = 1.0;    // Decay rate (per second)
+    
+    double current_lambda = 0.1;
+    int64_t last_update_ns = 0;
 
-        double variance = M2 / static_cast<double>(count - 1);
-        double sd       = std::sqrt(std::max(variance, 1e-30));
-        double z        = (x - mean) / sd;
-
-        return std::clamp(z, -clamp, clamp);
-    }
-
-    void reset() noexcept { mean = 0.0; M2 = 0.0; count = 0; }
-};
-
-struct WelfordVariance {
-    double mean = 0.0;
-    double M2 = 0.0;
-    int64_t count = 0;
-
-    void update(double x) noexcept {
-        count++;
-        double delta = x - mean;
-        mean += delta / count;
-        double delta2 = x - mean;
-        M2 += delta * delta2;
-    }
-    double variance() const noexcept {
-        if (count < 2) return 0.0;
-        return M2 / (count - 1);
-    }
-    void reset() noexcept { mean = 0.0; M2 = 0.0; count = 0; }
-};
-
-template<int W>
-struct RollingZScore {
-    double buf[W] = {0};
-    int head = 0;
-    int count = 0;
-    double sum = 0.0;
-    double sum_sq = 0.0;
-
-    double update(double x) noexcept {
-        double oldest = buf[head];
-        buf[head] = x;
-        head = (head + 1) % W;
-        
-        if (count < W) {
-            count++;
-            sum += x;
-            sum_sq += x * x;
-        } else {
-            sum += x - oldest;
-            sum_sq += (x * x) - (oldest * oldest);
+    void update(int64_t timestamp_ns, double trade_qty) noexcept {
+        if (last_update_ns == 0) {
+            current_lambda = mu + alpha * trade_qty;
+            last_update_ns = timestamp_ns;
+            return;
         }
         
-        if (count < 2) return 0.0;
+        // Time difference in seconds
+        double dt = static_cast<double>(timestamp_ns - last_update_ns) / 1e9;
+        if (dt < 0) dt = 0;
         
-        double mean = sum / count;
-        // variance = (E[X^2] - E[X]^2) * count / (count - 1) for sample variance
-        // Or simply: (sum_sq - (sum * sum) / count) / (count - 1)
-        double var_sum = sum_sq - (sum * sum) / count;
-        
-        // Due to floating point inaccuracies, var_sum can rarely become slightly negative.
-        if (var_sum < 0.0) var_sum = 0.0;
-        
-        double variance = var_sum / (count - 1);
-        double sd = std::sqrt(std::max(variance, 1e-30));
-        double z = (x - mean) / sd;
-        return std::clamp(z, -4.0, 4.0);
+        // Exponential decay
+        current_lambda = mu + (current_lambda - mu) * std::exp(-beta * dt) + alpha * trade_qty;
+        last_update_ns = timestamp_ns;
     }
 
     void reset() noexcept {
-        head = 0; count = 0; sum = 0.0; sum_sq = 0.0;
-        std::memset(buf, 0, sizeof(buf));
+        current_lambda = mu;
+        last_update_ns = 0;
     }
 };
 
@@ -240,10 +170,12 @@ private:
     FeatureConfig config_;
 
     // ── OFI state ────────────────────────────────────────────
-    int64_t prev_best_bid_price_ = INVALID_PRICE;
-    int64_t prev_best_ask_price_ = INVALID_PRICE;
-    int64_t prev_best_bid_qty_   = 0;
-    int64_t prev_best_ask_qty_   = 0;
+    int64_t prev_bid_prices_[10] = {0};
+    int64_t prev_ask_prices_[10] = {0};
+    int64_t prev_bid_qtys_[10]   = {0};
+    int64_t prev_ask_qtys_[10]   = {0};
+    int32_t prev_bid_count_      = 0;
+    int32_t prev_ask_count_      = 0;
     bool    has_prev_book_       = false;
 
     // ── VPIN state ───────────────────────────────────────────
@@ -257,13 +189,14 @@ private:
     double  vpin_running_abs_diff_ = 0.0; ///< O(1) tracker
     double  vpin_running_total_    = 0.0; ///< O(1) tracker
 
-    // ── Realized Volatility state ────────────────────────────
+    // ── Realized Volatility & Hurst state ────────────────────
+    double vol_log_returns_[MAX_VOL_WINDOW] = {};     ///< Ring of raw log returns
     double vol_log_returns_sq_[MAX_VOL_WINDOW] = {};  ///< Ring of squared log returns
+    double vol_sum_ = 0.0;
     int32_t vol_head_   = 0;
     int32_t vol_count_  = 0;
     double vol_last_price_ = 0.0;
     double vol_sum_sq_ = 0.0;
-    WelfordVariance long_vol_tracker_;
 
     // ── Stat-Arb state ───────────────────────────────────────
     double statarb_mids_[MAX_STATARB_WINDOW] = {};  ///< Ring of mid prices
@@ -272,29 +205,15 @@ private:
     double statarb_sum_ = 0.0;
     double statarb_sum_sq_ = 0.0;
 
-    // ── Online Normalizers (one per raw-unit signal) ─────────
-    // Signal index mapping:
-    //   [0] microprice offset (= microprice - mid, in price units)
-    //   [1] ofi              (in qty units, can be large)
-    //   [2] spread_bps       (always positive, mean ~0.5–2 bps for BTC)
-    //   [3] realized_vol     (small positive number, ~0.0001–0.005)
-    OnlineNormalizer norm_microprice_;
-    OnlineNormalizer norm_ofi_;
-    OnlineNormalizer norm_spread_bps_;
-    OnlineNormalizer norm_realized_vol_;
-    OnlineNormalizer norm_obi_;
+    // ── Online Normalizers (Removed for ONNX/TransLOB tensor construction) ──
 
-    // ── Engineered Features State ────────────────────────────
-    RollingZScore<10> z10_microprice_;
-    RollingZScore<50> z50_microprice_;
-    RollingZScore<10> z10_ofi_;
-    RollingZScore<50> z50_ofi_;
-    RollingZScore<10> z10_obi_;
-    RollingZScore<50> z50_obi_;
+    // ── Hawkes Process State ─────────────────────────────────
+    HawkesProcess hawkes_;
 
-    // ── Trade Imbalance State ────────────────────────────────
+    // ── Trade Imbalance & CVD State ──────────────────────────
     double recent_buy_vol_  = 0.0;
     double recent_sell_vol_ = 0.0;
+    double cvd_ = 0.0;
 
     // ── Signal Computation ───────────────────────────────────
     void update_vpin(const Trade& trade) noexcept;
@@ -302,6 +221,7 @@ private:
 
     void update_realized_vol(double price) noexcept;
     [[nodiscard]] double compute_realized_vol() const noexcept;
+    [[nodiscard]] double compute_hurst_exponent() const noexcept;
 
     void update_statarb(double mid_price) noexcept;
     [[nodiscard]] double compute_statarb_zscore() const noexcept;
@@ -309,7 +229,7 @@ private:
     /// Classify market regime from the computed signals
     [[nodiscard]] Regime classify_regime(
         double vpin, double spread_bps,
-        double realized_vol, double ofi) const noexcept;
+        double realized_vol, double ofi, double hurst) const noexcept;
 };
 
 // ─── SIMD Acceleration (Phase 2) ─────────────────────────────

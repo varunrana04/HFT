@@ -3,7 +3,7 @@
  * @brief Unit tests for the FeatureEngine (all 6 alpha signals).
  */
 
-#include "features.h"
+#include "feature_engine.h"
 #include "order_book.h"
 #include <cmath>
 #include <cstring>

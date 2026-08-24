@@ -32,14 +32,18 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>         // std::vector auto-conversion
 #include <pybind11/numpy.h>       // numpy array bindings for AVX2
+#include <pybind11/functional.h>  // std::function auto-conversion
+
 #include "strategy_engine.h"      // StrategyEngine, StrategyConfig, EngineMode
 #include "signal_combiner.h"      // CombinerMode
-#include "features.h"             // FeatureConfig, simd_dot_product_avx2
+#include "feature_engine.h"             // FeatureConfig, simd_dot_product_avx2
 #include "risk_manager.h"         // RiskConfig, RiskStats
 #include "types.h"                // All POD types
+#include "gateway/binance_ws.h"   // BinanceWs
 
 namespace py = pybind11;
 using namespace hft;
+using namespace hft::gateway;
 
 PYBIND11_MODULE(hft_engine, m) {
     m.doc() = R"doc(
@@ -346,12 +350,9 @@ PYBIND11_MODULE(hft_engine, m) {
                        "Z-score of mid-price vs rolling mean/std.")
         .def_readwrite("obi",             &FeatureVector::obi)
         .def_readwrite("trade_imbalance", &FeatureVector::trade_imbalance)
-        .def_readwrite("microprice_z10",  &FeatureVector::microprice_z10)
-        .def_readwrite("microprice_z50",  &FeatureVector::microprice_z50)
-        .def_readwrite("ofi_z10",         &FeatureVector::ofi_z10)
-        .def_readwrite("ofi_z50",         &FeatureVector::ofi_z50)
-        .def_readwrite("obi_z10",         &FeatureVector::obi_z10)
-        .def_readwrite("obi_z50",         &FeatureVector::obi_z50)
+        .def_readwrite("hawkes_intensity", &FeatureVector::hawkes_intensity)
+        .def_readwrite("cvd",             &FeatureVector::cvd)
+        .def_readwrite("hurst_exponent",  &FeatureVector::hurst_exponent)
         .def_readwrite("combined_alpha",  &FeatureVector::combined_alpha,
                        "Weighted combination of all signals [-1, 1].")
         .def_readwrite("regime",          &FeatureVector::regime,
@@ -397,6 +398,14 @@ PYBIND11_MODULE(hft_engine, m) {
         .def_readonly("slippage",     &TradeRecord::slippage)
         .def_readonly("side",         &TradeRecord::side);
 
+    py::class_<StrategyEngine::PendingOrder>(m, "PendingOrder",
+            "A simulated open limit order waiting in the queue.")
+        .def_readonly("active",         &StrategyEngine::PendingOrder::active)
+        .def_readonly("side",           &StrategyEngine::PendingOrder::side)
+        .def_readonly("price",          &StrategyEngine::PendingOrder::price)
+        .def_readonly("qty",            &StrategyEngine::PendingOrder::qty)
+        .def_readonly("queue_position", &StrategyEngine::PendingOrder::queue_position);
+
     // ─── StrategyEngine ───────────────────────────────────────────────────
 
     py::class_<StrategyEngine>(m, "StrategyEngine", R"doc(
@@ -435,13 +444,21 @@ PYBIND11_MODULE(hft_engine, m) {
              "Cumulative realized PnL in USD.")
         .def("equity",          &StrategyEngine::equity,
              "Total equity: initial_capital + realized_pnl + unrealized_pnl.")
+        .def("set_position",    &StrategyEngine::set_position,
+             py::arg("pos"), "Set net position in fixed-point manually.")
+        .def("set_realized_pnl", &StrategyEngine::set_realized_pnl,
+             py::arg("pnl"), "Set realized PnL manually.")
+        .def("set_avg_entry_price", &StrategyEngine::set_avg_entry_price,
+             py::arg("px"), "Set average entry price manually.")
         .def("trade_journal",   &StrategyEngine::trade_journal,
              py::return_value_policy::reference_internal)
         .def("clear_journal",   &StrategyEngine::clear_journal)
         .def("equity_history",  &StrategyEngine::equity_history,
              "Total equity: initial_capital + realized_pnl + unrealized_pnl.")
         .def("last_features",   &StrategyEngine::last_features,
-             "Last computed FeatureVector (all 6 alpha signals + regime).")
+             py::return_value_policy::reference_internal)
+        .def("pending_order", [](const StrategyEngine& engine) { return engine.pending_order_; },
+             "Get the active open limit order currently waiting in the queue.")
         .def("metrics",         &StrategyEngine::metrics,
              "PerformanceMetrics snapshot (Sharpe, win-rate, drawdown, etc.).")
         .def("risk_stats",      &StrategyEngine::risk_stats,
@@ -530,4 +547,33 @@ PYBIND11_MODULE(hft_engine, m) {
         .def("onnx_n_features",
              &StrategyEngine::onnx_n_features,
              "Number of input features expected by the loaded ONNX model (6 if none).");
+
+    // ─── Binance WebSocket Gateway ───────────────────────────────────────
+    py::class_<BinanceWs>(m, "BinanceWs",
+            "Ultra-fast native C++ Binance WebSocket Gateway (uWebSockets + simdjson)")
+        .def(py::init<const std::string&>(), py::arg("symbol") = "btcusdt")
+        .def("initialize", &BinanceWs::initialize)
+        .def("poll_loop", [](BinanceWs& self, py::function on_trade, py::function on_book) {
+            // Need to release GIL because poll_loop blocks and calls back into Python
+            // Wait, poll_loop creates a thread and returns immediately in our C++ implementation!
+            // So we don't need to release GIL here since it doesn't block.
+            // But when C++ calls the Python callback from the background thread, it MUST acquire the GIL!
+            // This is a common PyBind11 pitfall. We will wrap the callbacks to acquire GIL.
+            
+            auto trade_cb = [on_trade](const Trade& t) {
+                py::gil_scoped_acquire acquire;
+                on_trade(t);
+            };
+            
+            auto book_cb = [on_book](const BookSnapshot& b) {
+                py::gil_scoped_acquire acquire;
+                on_book(b);
+            };
+            
+            self.poll_loop(trade_cb, book_cb);
+        }, py::arg("on_trade_callback"), py::arg("on_book_callback"),
+        "Start polling Binance WebSockets in a background thread.")
+        .def("start_live_feed", &BinanceWs::start_live_feed, py::arg("engine"),
+             "Link the C++ Gateway directly to the StrategyEngine and start the background thread, entirely bypassing Python.")
+        .def("stop", &BinanceWs::stop);
 }

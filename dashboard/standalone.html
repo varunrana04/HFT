@@ -191,9 +191,14 @@
             </svg>
             HFT Engine Telemetry
         </h1>
-        <div class="status-indicator" id="connection-status">
-            <div class="status-dot"></div>
-            <span>Connecting...</span>
+        <div style="display: flex; gap: 15px; align-items: center;">
+            <a href="/api/export" target="_blank" style="text-decoration: none; padding: 6px 12px; background: rgba(59, 130, 246, 0.2); border: 1px solid var(--accent); color: var(--accent); border-radius: 20px; font-size: 0.9rem; font-weight: 500; transition: all 0.3s ease;">
+                ↓ Export Data
+            </a>
+            <div class="status-indicator" id="connection-status">
+                <div class="status-dot"></div>
+                <span>Connecting...</span>
+            </div>
         </div>
     </header>
 
@@ -217,7 +222,7 @@
         <!-- Prices Panel -->
         <div class="panel col-span-2">
             <div class="panel-header">Order Book L1</div>
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; height: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; height: 50%;">
                 <div>
                     <div style="font-size: 0.85rem; color: var(--text-muted)">Best Bid</div>
                     <div class="value-large val-up" id="val-bid">0.00</div>
@@ -228,6 +233,16 @@
                 <div style="text-align: right;">
                     <div style="font-size: 0.85rem; color: var(--text-muted)">Best Ask</div>
                     <div class="value-large val-down" id="val-ask">0.00</div>
+                </div>
+            </div>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05);">
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px;">Active Limit Order</div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div id="pending-order-side" class="regime-badge" style="background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.2);">NONE</div>
+                    <div style="text-align: right;">
+                        <div id="pending-order-price" class="value-medium val-neutral">0.00</div>
+                        <div id="pending-order-qty" style="font-size: 0.75rem; color: var(--text-muted);">0.00 BTC</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -394,8 +409,65 @@
             };
             
             ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
+                const msg = JSON.parse(event.data);
                 
+                if (msg.type === "history") {
+                    // msg.data is an array of past update payloads
+                    const past_data = msg.data;
+                    if (past_data.length === 0) return;
+                    
+                    const alphaData = alphaChart.data.datasets[0].data;
+                    const equityData = equityChart.data.datasets[0].data;
+                    
+                    // Fill from right to left
+                    for (let i = 0; i < past_data.length; i++) {
+                        const pt = past_data[past_data.length - 1 - i];
+                        if (alphaData.length - 1 - i >= 0) {
+                            alphaData[alphaData.length - 1 - i] = pt.alpha;
+                            equityData[equityData.length - 1 - i] = pt.equity;
+                        }
+                    }
+                    alphaChart.update();
+                    equityChart.update();
+                    
+                    // Render the latest point as current values
+                    const data = past_data[past_data.length - 1];
+                    updateDOM(data);
+                } else if (msg.type === "update") {
+                    const data = msg;
+                    updateDOM(data);
+                    
+                    // Update Charts
+                    const alphaData = alphaChart.data.datasets[0].data;
+                    alphaData.shift();
+                    alphaData.push(data.alpha);
+                    alphaChart.update();
+
+                    const equityData = equityChart.data.datasets[0].data;
+                    equityData.shift();
+                    if(equityData[0] === 0) equityData.fill(data.equity);
+                    equityData.push(data.equity);
+                    equityChart.update();
+                } else {
+                    // Fallback for older server versions
+                    const data = msg;
+                    updateDOM(data);
+                    
+                    const alphaData = alphaChart.data.datasets[0].data;
+                    alphaData.shift();
+                    alphaData.push(data.alpha);
+                    alphaChart.update();
+
+                    const equityData = equityChart.data.datasets[0].data;
+                    equityData.shift();
+                    if(equityData[0] === 0) equityData.fill(data.equity);
+                    equityData.push(data.equity);
+                    equityChart.update();
+                }
+            };
+            
+            function updateDOM(data) {
+                if(data.equity === undefined) return;
                 // Update DOM elements
                 document.getElementById('val-equity').innerText = formatMoney(data.equity);
                 document.getElementById('val-inventory').innerText = formatCrypto(data.inventory);
@@ -413,20 +485,35 @@
                 
                 document.getElementById('feat-vpin').innerText = formatFloat(data.vpin);
                 document.getElementById('feat-vol').innerText = formatFloat(data.volatility);
-
-                // Update Charts
-                const alphaData = alphaChart.data.datasets[0].data;
-                alphaData.shift();
-                alphaData.push(data.alpha);
-                alphaChart.update();
-
-                const equityData = equityChart.data.datasets[0].data;
-                equityData.shift();
-                // Initialize array with first value to prevent scaling issues from 0
-                if(equityData[0] === 0) equityData.fill(data.equity);
-                equityData.push(data.equity);
-                equityChart.update();
-            };
+                
+                // Pending Order
+                if(data.pending_order) {
+                    const po = data.pending_order;
+                    const sideEl = document.getElementById('pending-order-side');
+                    const priceEl = document.getElementById('pending-order-price');
+                    const qtyEl = document.getElementById('pending-order-qty');
+                    
+                    if(po.active && po.side !== "NONE") {
+                        sideEl.innerText = po.side;
+                        sideEl.style.color = (po.side === "BID") ? "var(--positive)" : "var(--negative)";
+                        sideEl.style.borderColor = (po.side === "BID") ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)";
+                        sideEl.style.background = (po.side === "BID") ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)";
+                        
+                        priceEl.innerText = po.price.toFixed(2);
+                        priceEl.className = 'value-medium ' + (po.side === "BID" ? 'val-up' : 'val-down');
+                        qtyEl.innerText = po.qty.toFixed(4) + " BTC (Q: " + po.queue_position.toFixed(2) + " BTC)";
+                    } else {
+                        sideEl.innerText = "NONE";
+                        sideEl.style.color = "#fff";
+                        sideEl.style.borderColor = "rgba(255,255,255,0.2)";
+                        sideEl.style.background = "rgba(255,255,255,0.1)";
+                        
+                        priceEl.innerText = "0.00";
+                        priceEl.className = 'value-medium val-neutral';
+                        qtyEl.innerText = "0.00 BTC";
+                    }
+                }
+            }
         }
 
         // Init

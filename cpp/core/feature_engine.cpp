@@ -23,7 +23,7 @@
  *    Used for mean-reversion signals
  */
 
-#include "features.h"
+#include "feature_engine.h"
 #include <cstring>
 #include <cmath>
 #include <algorithm>
@@ -44,10 +44,12 @@ FeatureEngine::FeatureEngine(const FeatureConfig& config) noexcept
 }
 
 void FeatureEngine::reset() noexcept {
-    prev_best_bid_price_ = INVALID_PRICE;
-    prev_best_ask_price_ = INVALID_PRICE;
-    prev_best_bid_qty_   = 0;
-    prev_best_ask_qty_   = 0;
+    std::memset(prev_bid_prices_, 0, sizeof(prev_bid_prices_));
+    std::memset(prev_ask_prices_, 0, sizeof(prev_ask_prices_));
+    std::memset(prev_bid_qtys_, 0, sizeof(prev_bid_qtys_));
+    std::memset(prev_ask_qtys_, 0, sizeof(prev_ask_qtys_));
+    prev_bid_count_ = 0;
+    prev_ask_count_ = 0;
     has_prev_book_       = false;
 
     std::memset(vpin_buy_vol_, 0, sizeof(vpin_buy_vol_));
@@ -59,12 +61,13 @@ void FeatureEngine::reset() noexcept {
     vpin_running_abs_diff_ = 0.0;
     vpin_running_total_    = 0.0;
 
+    std::memset(vol_log_returns_, 0, sizeof(vol_log_returns_));
     std::memset(vol_log_returns_sq_, 0, sizeof(vol_log_returns_sq_));
     vol_head_  = 0;
     vol_count_ = 0;
     vol_last_price_ = 0.0;
+    vol_sum_ = 0.0;
     vol_sum_sq_ = 0.0;
-    long_vol_tracker_.reset();
 
     std::memset(statarb_mids_, 0, sizeof(statarb_mids_));
     statarb_head_  = 0;
@@ -72,21 +75,11 @@ void FeatureEngine::reset() noexcept {
     statarb_sum_ = 0.0;
     statarb_sum_sq_ = 0.0;
 
-    norm_microprice_.reset();
-    norm_ofi_.reset();
-    norm_spread_bps_.reset();
-    norm_realized_vol_.reset();
-    norm_obi_.reset();
-
-    z10_microprice_.reset();
-    z50_microprice_.reset();
-    z10_ofi_.reset();
-    z50_ofi_.reset();
-    z10_obi_.reset();
-    z50_obi_.reset();
+    hawkes_.reset();
 
     recent_buy_vol_  = 0.0;
     recent_sell_vol_ = 0.0;
+    cvd_ = 0.0;
 }
 
 // ─── Main Entry Point ────────────────────────────────────────
@@ -102,76 +95,105 @@ FeatureVector FeatureEngine::compute_all(const BookSnapshot& book,
         return fv;
     }
 
-    const int32_t min_obs = config_.normalizer_min_obs;
-    const double  clamp   = config_.normalizer_clamp;
-
-    // 1. Microprice (stateless) — raw value is an absolute price.
-    //    We normalize the offset from mid so the signal is directional.
+    // 1. Microprice (stateless) 
     double raw_microprice = compute_microprice(book);
     double mid_price_f    = fixed_to_price(book.mid_price());
-    double micro_offset   = (mid_price_f > 0.0)
-                            ? (raw_microprice - mid_price_f)  // signed offset in price units
-                            : 0.0;
-    fv.microprice = norm_microprice_.update_and_normalize(micro_offset, min_obs, clamp);
+    double spread_f = (book.best_ask_price > book.best_bid_price) ? fixed_to_price(book.best_ask_price - book.best_bid_price) : 0.01;
+    
+    // Spatial Normalization: scale offset by the current spread
+    fv.microprice = (mid_price_f > 0.0 && spread_f > 0.0)
+                    ? (raw_microprice - mid_price_f) / spread_f
+                    : 0.0;
 
-    // 2. OFI (needs previous book state) — raw value is in qty units (can be large)
+    // 2. OFI
     double raw_ofi = compute_ofi(book);
-    fv.ofi = norm_ofi_.update_and_normalize(raw_ofi, min_obs, clamp);
+    double tob_vol = fixed_to_qty(book.best_bid_qty + book.best_ask_qty);
+    // Spatial Normalization: scale by current Top of Book volume
+    fv.ofi = (tob_vol > 0.0) ? (raw_ofi / tob_vol) : 0.0;
 
-    // 3. VPIN (update buckets, then compute) — already in [0, 1], no normalization needed
+    // 3. VPIN (update buckets, then compute) — already in [0, 1]
     update_vpin(trade);
-    fv.vpin = compute_vpin();  // [0, 1] — passed through as-is
+    fv.vpin = compute_vpin(); 
 
-    // 4. Spread in basis points (always positive; Z-normalize so wide-spread
-    //    events don't swamp the combined alpha)
-    double raw_spread_bps = compute_spread_bps(book);
-    fv.spread_bps = norm_spread_bps_.update_and_normalize(raw_spread_bps, min_obs, clamp);
+    // 4. Spread in basis points
+    fv.spread_bps = compute_spread_bps(book);
 
-    // 5. Realized volatility (small positive log-return magnitude)
+    // 5. Realized volatility
     double trade_price = fixed_to_price(trade.price);
     update_realized_vol(trade_price);
-    double raw_vol = compute_realized_vol();
-    fv.realized_vol = norm_realized_vol_.update_and_normalize(raw_vol, min_obs, clamp);
+    fv.realized_vol = compute_realized_vol();
     
-    // VRP: short_vol / (long_vol + 1e-9)
-    double long_vol = std::sqrt(std::max(long_vol_tracker_.variance(), 0.0));
-    fv.vrp = raw_vol / (long_vol + 1e-9);
+    // VRP: Not yet implemented (requires long_vol_tracker_)
+    double long_vol = 1e-9; 
+    fv.vrp = 0.0;
 
-    // 6. Stat-Arb Z-score — already a z-score, clamp only
+    // 6. Stat-Arb Z-score
     update_statarb(mid_price_f);
-    double raw_zscore    = compute_statarb_zscore();
-    fv.stat_arb_zscore   = std::clamp(raw_zscore, -clamp, clamp);
+    fv.stat_arb_zscore = compute_statarb_zscore();
 
-    // 7. OBI (Order Book Imbalance)
-    double raw_obi = compute_obi(book);
-    fv.obi = norm_obi_.update_and_normalize(raw_obi, min_obs, clamp);
+    // 7. OBI (Order Book Imbalance) - naturally [-1, 1]
+    fv.obi = compute_obi(book);
+    
+    // ── ONNX TENSOR CONSTRUCTION (TransLOB/Kronos Format) ──
+    // Format: (P_ask, V_ask, P_bid, V_bid) * 10 levels
+    // Prices are normalized by dividing by mid_price.
+    // Volumes are normalized by dividing by 10-level sum.
+    
+    double total_vol = 0.0;
+    for (int i = 0; i < 10; ++i) {
+        if (i < book.ask_count) total_vol += fixed_to_qty(book.asks[i].quantity);
+        if (i < book.bid_count) total_vol += fixed_to_qty(book.bids[i].quantity);
+    }
+    if (total_vol <= 0.0) total_vol = 1.0;
+    
+    for (int i = 0; i < 10; ++i) {
+        int idx = i * 4;
+        // Ask Price & Volume
+        if (i < book.ask_count) {
+            fv.lob_tensor[idx]     = static_cast<float>(fixed_to_price(book.asks[i].price) / mid_price_f);
+            fv.lob_tensor[idx + 1] = static_cast<float>(fixed_to_qty(book.asks[i].quantity) / total_vol);
+        } else {
+            fv.lob_tensor[idx]     = 1.0f; // Padding
+            fv.lob_tensor[idx + 1] = 0.0f;
+        }
+        
+        // Bid Price & Volume
+        if (i < book.bid_count) {
+            fv.lob_tensor[idx + 2] = static_cast<float>(fixed_to_price(book.bids[i].price) / mid_price_f);
+            fv.lob_tensor[idx + 3] = static_cast<float>(fixed_to_qty(book.bids[i].quantity) / total_vol);
+        } else {
+            fv.lob_tensor[idx + 2] = 1.0f; // Padding
+            fv.lob_tensor[idx + 3] = 0.0f;
+        }
+    }
 
     // 8. Trade Imbalance (EMA of buy vs sell volume)
     double trade_qty = fixed_to_qty(trade.quantity);
     if (trade.side == Side::BID) {
         recent_buy_vol_ = recent_buy_vol_ * 0.99 + trade_qty;
         recent_sell_vol_ = recent_sell_vol_ * 0.99;
+        cvd_ += trade_qty;
     } else {
         recent_sell_vol_ = recent_sell_vol_ * 0.99 + trade_qty;
         recent_buy_vol_ = recent_buy_vol_ * 0.99;
+        cvd_ -= trade_qty;
     }
     double total_recent_vol = recent_buy_vol_ + recent_sell_vol_;
     fv.trade_imbalance = (total_recent_vol > 0.0) 
         ? (recent_buy_vol_ - recent_sell_vol_) / total_recent_vol 
         : 0.0;
+    fv.cvd = cvd_;
+    // 9. Hawkes Process Intensity
+    hawkes_.update(trade.timestamp_ns, fixed_to_qty(trade.quantity));
+    fv.hawkes_intensity = hawkes_.current_lambda;
 
-    // 9. Rolling Z-scores (Engineered Features)
-    fv.microprice_z10 = z10_microprice_.update(fv.microprice);
-    fv.microprice_z50 = z50_microprice_.update(fv.microprice);
-    fv.ofi_z10        = z10_ofi_.update(fv.ofi);
-    fv.ofi_z50        = z50_ofi_.update(fv.ofi);
-    fv.obi_z10        = z10_obi_.update(fv.obi);
-    fv.obi_z50        = z50_obi_.update(fv.obi);
+    // 10. Hurst Exponent
+    fv.hurst_exponent = compute_hurst_exponent();
 
     // Regime classification uses the RAW (physical) values so that
     // physical thresholds (e.g. spread_bps > 50) remain meaningful.
-    fv.regime = classify_regime(fv.vpin, raw_spread_bps,
-                                raw_vol, raw_ofi);
+    fv.regime = classify_regime(fv.vpin, fv.spread_bps,
+                                fv.realized_vol, raw_ofi, fv.hurst_exponent);
 
     return fv;
 }
@@ -181,10 +203,24 @@ FeatureVector FeatureEngine::compute_all(const BookSnapshot& book,
 double FeatureEngine::compute_microprice(
     const BookSnapshot& book) const noexcept {
 
-    double bid_qty = fixed_to_qty(book.best_bid_qty);
-    double ask_qty = fixed_to_qty(book.best_ask_qty);
-    double total   = bid_qty + ask_qty;
+    double ask_qty_decayed = 0.0;
+    double bid_qty_decayed = 0.0;
 
+    // We only go up to 10 levels max
+    int32_t bid_iters = std::min(book.bid_count, 10);
+    int32_t ask_iters = std::min(book.ask_count, 10);
+
+    for (int i = 0; i < bid_iters; ++i) {
+        double weight = std::exp(-0.5 * i);
+        bid_qty_decayed += fixed_to_qty(book.bids[i].quantity) * weight;
+    }
+    
+    for (int i = 0; i < ask_iters; ++i) {
+        double weight = std::exp(-0.5 * i);
+        ask_qty_decayed += fixed_to_qty(book.asks[i].quantity) * weight;
+    }
+
+    double total = bid_qty_decayed + ask_qty_decayed;
     if (total <= 0.0) return 0.0;
 
     double bid_price = fixed_to_price(book.best_bid_price);
@@ -192,7 +228,7 @@ double FeatureEngine::compute_microprice(
 
     // Microprice: weighted average where each side's weight is the
     // OPPOSITE side's quantity (ask qty weights bid price and vice versa)
-    return (ask_qty * bid_price + bid_qty * ask_price) / total;
+    return (ask_qty_decayed * bid_price + bid_qty_decayed * ask_price) / total;
 }
 
 // ─── Order Book Imbalance (OBI) ──────────────────────────────
@@ -207,49 +243,55 @@ double FeatureEngine::compute_obi(const BookSnapshot& book) const noexcept {
 // ─── Signal 2: Order Flow Imbalance ──────────────────────────
 
 double FeatureEngine::compute_ofi(const BookSnapshot& book) noexcept {
-    double ofi = 0.0;
+    double total_ofi = 0.0;
 
     if (has_prev_book_) {
-        // Delta bid quantity at the touch
-        double delta_bid = 0.0;
-        if (book.best_bid_price == prev_best_bid_price_) {
-            // Same price level — quantity change is meaningful
-            delta_bid = fixed_to_qty(book.best_bid_qty)
-                      - fixed_to_qty(prev_best_bid_qty_);
-        } else if (book.best_bid_price > prev_best_bid_price_) {
-            // New higher bid appeared — all its quantity is "added"
-            delta_bid = fixed_to_qty(book.best_bid_qty);
-        } else {
-            // Best bid dropped — all previous quantity is "removed"
-            delta_bid = -fixed_to_qty(prev_best_bid_qty_);
+        // Multi-level OFI with spatial decay
+        int32_t bid_iters = std::min(book.bid_count, 10);
+        for (int i = 0; i < bid_iters; ++i) {
+            double weight = std::exp(-0.5 * i);
+            double delta_bid = 0.0;
+            
+            if (i < prev_bid_count_ && book.bids[i].price == prev_bid_prices_[i]) {
+                delta_bid = fixed_to_qty(book.bids[i].quantity) - fixed_to_qty(prev_bid_qtys_[i]);
+            } else if (i >= prev_bid_count_ || book.bids[i].price > prev_bid_prices_[i]) {
+                delta_bid = fixed_to_qty(book.bids[i].quantity);
+            } else {
+                delta_bid = -fixed_to_qty(prev_bid_qtys_[i]);
+            }
+            total_ofi += delta_bid * weight;
         }
 
-        // Delta ask quantity at the touch
-        double delta_ask = 0.0;
-        if (book.best_ask_price == prev_best_ask_price_) {
-            delta_ask = fixed_to_qty(book.best_ask_qty)
-                      - fixed_to_qty(prev_best_ask_qty_);
-        } else if (book.best_ask_price < prev_best_ask_price_) {
-            // New lower ask appeared — all its quantity is "added"
-            delta_ask = fixed_to_qty(book.best_ask_qty);
-        } else {
-            // Best ask lifted — all previous quantity is "removed"
-            delta_ask = -fixed_to_qty(prev_best_ask_qty_);
+        int32_t ask_iters = std::min(book.ask_count, 10);
+        for (int i = 0; i < ask_iters; ++i) {
+            double weight = std::exp(-0.5 * i);
+            double delta_ask = 0.0;
+            
+            if (i < prev_ask_count_ && book.asks[i].price == prev_ask_prices_[i]) {
+                delta_ask = fixed_to_qty(book.asks[i].quantity) - fixed_to_qty(prev_ask_qtys_[i]);
+            } else if (i >= prev_ask_count_ || book.asks[i].price < prev_ask_prices_[i]) {
+                delta_ask = fixed_to_qty(book.asks[i].quantity);
+            } else {
+                delta_ask = -fixed_to_qty(prev_ask_qtys_[i]);
+            }
+            total_ofi -= delta_ask * weight; // OFI = bids - asks
         }
-
-        // OFI = bid pressure - ask pressure
-        // Positive → net buying → bullish signal
-        ofi = delta_bid - delta_ask;
     }
 
-    // Save current state for next call
-    prev_best_bid_price_ = book.best_bid_price;
-    prev_best_ask_price_ = book.best_ask_price;
-    prev_best_bid_qty_   = book.best_bid_qty;
-    prev_best_ask_qty_   = book.best_ask_qty;
-    has_prev_book_       = true;
+    // Save current state for next call up to 10 levels
+    prev_bid_count_ = std::min(book.bid_count, 10);
+    for (int i = 0; i < prev_bid_count_; ++i) {
+        prev_bid_prices_[i] = book.bids[i].price;
+        prev_bid_qtys_[i]   = book.bids[i].quantity;
+    }
+    prev_ask_count_ = std::min(book.ask_count, 10);
+    for (int i = 0; i < prev_ask_count_; ++i) {
+        prev_ask_prices_[i] = book.asks[i].price;
+        prev_ask_qtys_[i]   = book.asks[i].quantity;
+    }
+    has_prev_book_ = true;
 
-    return ofi;
+    return total_ofi;
 }
 
 // ─── Signal 3: VPIN ──────────────────────────────────────────
@@ -331,8 +373,6 @@ void FeatureEngine::update_realized_vol(double price) noexcept {
     double log_ret = std::log(price / vol_last_price_);
     double log_ret_sq = log_ret * log_ret;
     vol_last_price_ = price;
-    
-    long_vol_tracker_.update(log_ret);
 
     int32_t w = config_.vol_window_ticks;
     int32_t idx = 0;
@@ -343,24 +383,51 @@ void FeatureEngine::update_realized_vol(double price) noexcept {
     } else {
         idx = vol_head_;
         vol_sum_sq_ -= vol_log_returns_sq_[idx];
+        vol_sum_ -= vol_log_returns_[idx];
         vol_head_ = (vol_head_ + 1) % w;
     }
 
     vol_log_returns_sq_[idx] = log_ret_sq;
+    vol_log_returns_[idx] = log_ret;
     vol_sum_sq_ += log_ret_sq;
+    vol_sum_ += log_ret;
 }
 
 double FeatureEngine::compute_realized_vol() const noexcept {
-    if (vol_count_ < 1) return 0.0;
-    
-    // Sum of squared log returns divided by count-1 (where count is the number of returns, i.e., vol_count_)
-    // If vol_count_ is 1, return 0 to avoid div by zero.
-    if (vol_count_ == 1) return 0.0;
+    if (vol_count_ <= 1) return 0.0;
     
     double variance = vol_sum_sq_ / (vol_count_ - 1);
     if (variance < 0.0) variance = 0.0;
     
     return std::sqrt(variance);
+}
+
+double FeatureEngine::compute_hurst_exponent() const noexcept {
+    if (vol_count_ < 10) return 0.5; // Default random walk for insufficient data
+
+    double mean = vol_sum_ / vol_count_;
+    double cumulative_deviation = 0.0;
+    double max_dev = 0.0;
+    double min_dev = 0.0;
+
+    // Rescaled Range (R/S) Calculation
+    for (int i = 0; i < vol_count_; ++i) {
+        int idx = (vol_head_ + i) % config_.vol_window_ticks;
+        cumulative_deviation += (vol_log_returns_[idx] - mean);
+        if (cumulative_deviation > max_dev) max_dev = cumulative_deviation;
+        if (cumulative_deviation < min_dev) min_dev = cumulative_deviation;
+    }
+
+    double R = max_dev - min_dev;
+    if (R == 0.0) return 0.5;
+
+    // Standard deviation S
+    double variance = vol_sum_sq_ / vol_count_ - (mean * mean);
+    if (variance <= 0.0) return 0.5;
+    double S = std::sqrt(variance);
+
+    // H = log(R/S) / log(N)
+    return std::log(R / S) / std::log(static_cast<double>(vol_count_));
 }
 
 // ─── Signal 6: Stat-Arb Z-Score ──────────────────────────────
@@ -414,7 +481,7 @@ double FeatureEngine::compute_statarb_zscore() const noexcept {
 
 Regime FeatureEngine::classify_regime(
     double vpin, double spread_bps,
-    double realized_vol, double ofi) const noexcept {
+    double realized_vol, double ofi, double hurst) const noexcept {
 
     // High VPIN indicates informed/toxic flow
     if (vpin > 0.7) {
@@ -428,7 +495,8 @@ Regime FeatureEngine::classify_regime(
 
     // Persistent directional pressure with low vol → trending
     // Strong OFI with moderate volatility suggests directional move
-    if (std::abs(ofi) > 10.0 && realized_vol > 0.0 && realized_vol < 0.005) {
+    // Hurst > 0.65 confirms strong trending behavior
+    if (std::abs(ofi) > 10.0 && realized_vol > 0.0 && realized_vol < 0.005 && hurst > 0.65) {
         return Regime::TRENDING;
     }
 

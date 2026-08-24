@@ -15,8 +15,10 @@
  *   between CPU cores and maximize L1/L2 cache utilization.
  */
 
+
 #include <cstdint>
 #include <cstddef>
+#include <stddef.h>
 #include <limits>
 #include <type_traits>
 
@@ -24,7 +26,7 @@ namespace hft {
 
 // ─── Hardware Constants ───────────────────────────────────────
 /// CPU cache line size in bytes (64 bytes on x86-64, ARM Cortex-A)
-static constexpr size_t CACHE_LINE_SIZE = 64;
+static constexpr std::size_t CACHE_LINE_SIZE = 64;
 
 // ─── Fixed-Point Scaling ──────────────────────────────────────
 /// Price scale factor: 1 unit = 10^-8 of base currency
@@ -42,7 +44,7 @@ static constexpr int32_t MAX_INSTRUMENTS = 16;
 
 // ─── SPSC Queue ───────────────────────────────────────────────
 /// Default SPSC queue capacity (must be power of 2)
-static constexpr size_t DEFAULT_QUEUE_CAPACITY = 65536; // 2^16
+static constexpr std::size_t DEFAULT_QUEUE_CAPACITY = 65536; // 2^16
 
 // ─── Sentinel Values ──────────────────────────────────────────
 static constexpr int64_t INVALID_PRICE = std::numeric_limits<int64_t>::min();
@@ -130,7 +132,7 @@ static_assert(sizeof(PriceLevel) == 24,
  * Cache-line aligned to prevent false sharing when accessed from
  * multiple threads (e.g., producer writes, consumer reads via SPSC).
  */
-struct BookSnapshot {
+struct alignas(CACHE_LINE_SIZE) BookSnapshot {
     int64_t    timestamp_ns;                ///< Nanosecond-precision timestamp
     int64_t    sequence_num;                ///< Exchange sequence number
     PriceLevel bids[MAX_BOOK_LEVELS];       ///< Bid levels (descending price)
@@ -179,7 +181,7 @@ static_assert(std::is_trivially_copyable_v<BookSnapshot>,
 /**
  * @brief A single trade/tick event.
  */
-struct Trade {
+struct alignas(CACHE_LINE_SIZE) Trade {
     int64_t  timestamp_ns;   ///< Nanosecond timestamp
     int64_t  sequence_num;   ///< Exchange sequence number
     int64_t  price;          ///< Trade price (fixed-point)
@@ -201,13 +203,32 @@ static_assert(std::is_trivially_copyable_v<Trade>,
     "Trade must be trivially copyable for lock-free operations");
 
 /**
+ * @brief A forced liquidation event.
+ */
+struct alignas(CACHE_LINE_SIZE) Liquidation {
+    int64_t  timestamp_ns;   ///< Nanosecond timestamp
+    int64_t  price;          ///< Liquidation fill price (fixed-point)
+    int64_t  quantity;       ///< Liquidated quantity (fixed-point)
+    uint32_t instrument_id;  ///< Instrument identifier
+    Side     side;           ///< Side of the liquidated position
+    uint8_t  _pad[3];
+
+    [[nodiscard]] constexpr bool is_valid() const noexcept {
+        return price > 0 && quantity > 0 && side != Side::NONE;
+    }
+};
+
+static_assert(std::is_trivially_copyable_v<Liquidation>,
+    "Liquidation must be trivially copyable for lock-free operations");
+
+/**
  * @brief Feature vector output — all alpha signals in one struct.
  *
  * Produced by the C++ feature engine, consumed by the signal combiner
  * and optionally exported to Python (via pybind11 zero-copy to NumPy).
  * Uses double for features since they feed into statistical models.
  */
-struct FeatureVector {
+struct alignas(CACHE_LINE_SIZE) FeatureVector {
     int64_t timestamp_ns;        ///< Timestamp of the source data
     double  microprice;          ///< Volume-weighted fair value
     double  ofi;                 ///< Order Flow Imbalance
@@ -217,19 +238,21 @@ struct FeatureVector {
     double  stat_arb_zscore;     ///< Z-score of spread (pairs trading)
     double  vrp;                 ///< Volatility Risk Premium
     
+    // ── ONNX Deep Learning Tensor ──
+    // 40-element array representing 10 levels of Bid/Ask Price/Qty
+    // (P_ask, V_ask, P_bid, V_bid) * 10 levels
+    float   lob_tensor[40];
+
     // ── Engineered Features ──
     double  obi;                 ///< Order Book Imbalance
     double  trade_imbalance;     ///< Buy/Sell trade volume imbalance
-    double  microprice_z10;      ///< 10-tick rolling Z-score of microprice
-    double  microprice_z50;      ///< 50-tick rolling Z-score of microprice
-    double  ofi_z10;             ///< 10-tick rolling Z-score of OFI
-    double  ofi_z50;             ///< 50-tick rolling Z-score of OFI
-    double  obi_z10;             ///< 10-tick rolling Z-score of OBI
-    double  obi_z50;             ///< 50-tick rolling Z-score of OBI
+    double  hawkes_intensity;    ///< True Hawkes Process toxicity intensity
+    double  cvd;                 ///< Cumulative Volume Delta
+    double  hurst_exponent;      ///< Hurst Exponent (Long term memory)
     
     double  combined_alpha;      ///< Weighted signal combination [-1, 1]
     Regime  regime;              ///< Current market regime
-    uint8_t _pad[7];
+    uint8_t _pad[7];             ///< padding adjusted for alignment
 
     [[nodiscard]] constexpr bool has_valid_alpha() const noexcept {
         return combined_alpha >= -1.0 && combined_alpha <= 1.0;
@@ -242,7 +265,7 @@ static_assert(std::is_trivially_copyable_v<FeatureVector>,
 /**
  * @brief Order representation sent to the exchange.
  */
-struct Order {
+struct alignas(CACHE_LINE_SIZE) Order {
     int64_t    timestamp_ns;      ///< Order creation time
     int64_t    price;             ///< Limit price (fixed-point), 0 for market
     int64_t    quantity;          ///< Order quantity (fixed-point)

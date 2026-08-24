@@ -17,18 +17,19 @@
  * All hot-path operations are O(1), noexcept, and zero-allocation.
  */
 
+#include <cstdint>
+#include <cmath>
+#include <cstdlib>
+#include <algorithm>
+#include <vector>
+
 #include "types.h"
 #include "order_book.h"
-#include "features.h"
+#include "feature_engine.h"
 #include "signal_combiner.h"
 #include "risk_manager.h"
 #include "order_manager.h"
 #include "clock.h"
-
-#include <cstdint>
-#include <cmath>
-#include <algorithm>
-#include <vector>
 
 namespace hft {
 
@@ -208,6 +209,11 @@ public:
     /// Total equity (capital + realized + unrealized)
     [[nodiscard]] double equity() const noexcept;
 
+    /// Setters for account state persistence
+    void set_position(int64_t pos) noexcept { position_ = pos; }
+    void set_realized_pnl(double pnl) noexcept { realized_pnl_ = pnl; }
+    void set_avg_entry_price(double px) noexcept { avg_entry_price_ = px; }
+
     [[nodiscard]] const std::vector<TradeRecord>& trade_journal() const noexcept {
         return journal_;
     }
@@ -275,7 +281,7 @@ public:
     void new_trading_day() noexcept;
 
     /// Set signal combiner weights (6-element array)
-    void set_weights(const double* weights, size_t count) noexcept {
+    void set_weights(const double* weights, std::size_t count) noexcept {
         combiner_.set_weights(weights, count);
     }
 

@@ -111,12 +111,12 @@ double SignalCombiner::combine_onnx(const FeatureVector& fv) noexcept {
     buf[5] = static_cast<float>(fv.stat_arb_zscore);
     buf[6] = static_cast<float>(fv.obi);
     buf[7] = static_cast<float>(fv.trade_imbalance);
-    buf[8] = static_cast<float>(fv.microprice_z10);
-    buf[9] = static_cast<float>(fv.microprice_z50);
-    buf[10] = static_cast<float>(fv.ofi_z10);
-    buf[11] = static_cast<float>(fv.ofi_z50);
-    buf[12] = static_cast<float>(fv.obi_z10);
-    buf[13] = static_cast<float>(fv.obi_z50);
+    buf[8] = static_cast<float>(fv.hawkes_intensity);
+    buf[9] = static_cast<float>(fv.cvd);
+    buf[10] = static_cast<float>(fv.hurst_exponent);
+    buf[11] = 0.0f;
+    buf[12] = 0.0f;
+    buf[13] = 0.0f;
 
     try {
         // Create input tensor over the pre-allocated buffer (zero-copy)

@@ -27,7 +27,7 @@
 #include "data_validator.h"
 #include "spsc_queue.h"
 #include "market_data.h"
-#include "features.h"
+#include "feature_engine.h"
 #include "signal_combiner.h"
 #include "risk_manager.h"
 #include "order_manager.h"

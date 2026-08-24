@@ -53,7 +53,10 @@ class PaperState:
 
 with open(PaperState.trade_log_file, "w", newline="") as f:
     writer = csv.writer(f)
-    writer.writerow(["RunID", "Timestamp", "Side", "Price", "Qty", "Cash", "Inventory", "Equity"])
+    writer.writerow([
+        "RunID", "TimestampNs", "Side", "EntryPrice", "ExitPrice", "Qty", "PnL", "Slippage",
+        "CombinedAlpha", "RealizedVol", "VPIN", "OFI", "OBI", "SpreadBps", "CVD", "Hawkes", "Regime"
+    ])
 
 def compress_old_logs(current_run_id):
     old_csvs = [f for f in glob.glob("paper_trades_*.csv") if current_run_id not in f]
@@ -75,14 +78,24 @@ sentiment_model = None
 
 from contextlib import asynccontextmanager
 
+cpp_gateway = None
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global cpp_gateway
+    print("[INFO] Initializing C++ Exchange Gateway (IXWebSocket)...")
+    cpp_gateway = hft_engine.BinanceWs("btcusdt")
+    cpp_gateway.start_live_feed(engine)
+    
     # Start the background tasks
-    asyncio.create_task(binance_ws_loop())
+    asyncio.create_task(log_flusher_loop())
     asyncio.create_task(ml_bridge_loop())
     
     # Start sentiment task (disabled to save RAM in free cloud tier)
     yield
+    
+    if cpp_gateway:
+        cpp_gateway.stop()
 
 app = FastAPI(title="HFT Quant Cockpit API", lifespan=lifespan)
 app.add_middleware(
@@ -92,18 +105,35 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
+# load state
+ACCOUNT_FILE = "paper_account.json"
+loaded_capital = 10000000.0
+loaded_position = 0
+loaded_realized_pnl = 0.0
+
+if os.path.exists(ACCOUNT_FILE):
+    try:
+        with open(ACCOUNT_FILE, "r") as f:
+            state = json.load(f)
+            loaded_capital = state.get("initial_capital", 10000000.0)
+            loaded_position = state.get("position", 0)
+            loaded_realized_pnl = state.get("realized_pnl", 0.0)
+            print(f"[INFO] Loaded account state: Capital={loaded_capital}, Pos={loaded_position/1e8}, PnL={loaded_realized_pnl}")
+    except Exception as e:
+        print(f"[WARNING] Could not load account state: {e}")
+
 print("DEBUG: Before StrategyConfig")
 # Configure strategy
 config = hft_engine.StrategyConfig()
-config.initial_capital = 10000000.0
+config.initial_capital = loaded_capital
 config.min_warmup_ticks = 1000  # Institutional: full warmup so all feature buffers are populated
 config.max_position_pct = 0.10  # Reduced from 15% to 10% to minimize inventory skew risk in deployment
 
 # ── Institutional Thresholds (Pre-Deployment Optimized) ──────────
-# Tightened entry thresholds to increase win-rate and reduce simulated fees
-config.alpha_entry_threshold = 0.08     # Raised from 0.05 for higher conviction entries
-config.alpha_short_multiplier = 1.3     # Raised from 1.2 to be even more selective on shorts
-config.spread_alpha_multiplier = 0.18   # Raised from 0.14 to heavily penalize trading in wide spreads
+# Lowered thresholds so that trades trigger frequently enough for live observation
+config.alpha_entry_threshold = 0.03     # Lowered from 0.08 to increase trade frequency
+config.alpha_short_multiplier = 1.1     # Lowered from 1.3
+config.spread_alpha_multiplier = 0.05   # Lowered from 0.18 to allow trading in normal spreads
 config.min_take_profit_bps    = 5.0     # Keep at 5 bps
 
 # ── Futures Fee Model (USDM Perp, Binance VIP0) ─────────────────
@@ -114,6 +144,8 @@ taker_fee_global     =  0.00015  # 1.5 bps taker (used in mock engine)
 print("DEBUG: Before StrategyEngine")
 # The C++ Strategy Engine
 engine = hft_engine.StrategyEngine(config)
+engine.set_position(loaded_position)
+engine.set_realized_pnl(loaded_realized_pnl)
 # BACKTEST mode enables full trade journal (rich CSV output for audit/analysis)
 engine.set_mode(hft_engine.EngineMode.BACKTEST)
 
@@ -155,85 +187,57 @@ funding_rate    = 0.0   # BTC-PERP 8h funding rate (used as carry signal)
 mark_price      = 0.0   # Futures mark price
 
 # ─── Binance Futures WebSocket Consumer ────────────────────────
-async def binance_ws_loop():
-    global mark_price, funding_rate
-    # USDM Perpetual Futures streams
-    url = "wss://fstream.binance.com/stream?streams=btcusdt@trade/btcusdt@depth5@100ms/btcusdt@markPrice"
-    print(f"[INFO] Connecting to Binance FUTURES: {url}")
+# ─── Data Logger Loop (C++ Gateway handles network) ────────────
+async def log_flusher_loop():
+    print(f"[INFO] Background log flusher started.")
     
     while True:
         try:
-            async with websockets.connect(url) as ws:
-                print("[INFO] Connected to Binance Futures Live Stream!")
-                async for message in ws:
-                    outer = json.loads(message)
-                    # Combined stream wraps each event under {"stream":..., "data":{...}}
-                    data = outer.get('data', outer)
+            # Flush new journal records to CSV
+            journal = engine.trade_journal()
+            new_records = journal[PaperState.journal_idx:]
+            if new_records:
+                # Save account state on new trades
+                state_dict = {
+                    "initial_capital": config.initial_capital,
+                    "position": engine.position(),
+                    "realized_pnl": engine.realized_pnl()
+                }
+                try:
+                    with open(ACCOUNT_FILE, "w") as sf:
+                        json.dump(state_dict, sf)
+                except Exception as e:
+                    print(f"[WARNING] Failed to save account state: {e}")
 
-                    event = data.get('e', '')
-
-                    if event == 'trade' or event == 't':
-                        price = float(data['p'])
-                        qty   = float(data['q'])
-                        is_buyer_maker = data['m']
-
-                        price_history.append(price)
-
-                        if PaperState.is_trading:
-                            trade = hft_engine.Trade()
-                            trade.price    = int(price * 1e8)
-                            trade.quantity = int(qty * 1e8)
-                            trade.side = hft_engine.Side.ASK if is_buyer_maker else hft_engine.Side.BID
-
-                            engine.on_trade(trade, latest_book)
-
-                            # Flush new journal records to CSV
-                            journal = engine.trade_journal()
-                            new_records = journal[PaperState.journal_idx:]
-                            for record in new_records:
-                                side_str = "BUY" if record.side == hft_engine.Side.BID else "SELL"
-                                px   = record.exit_price / 1e8 if record.exit_price > 0 else record.entry_price / 1e8
-                                qty_ = abs(record.quantity) / 1e8
-                                with open(PaperState.trade_log_file, "a", newline="") as f:
-                                    writer = csv.writer(f)
-                                    writer.writerow([
-                                        PaperState.run_id, time.time(), side_str,
-                                        f"{px:.2f}", f"{qty_:.4f}", f"{funding_rate:.6f}",
-                                        f"{engine.position() / 1e8:.4f}", f"{engine.equity():.2f}"
-                                    ])
-                            PaperState.journal_idx = len(journal)
-
-                    elif event == 'markPriceUpdate':
-                        mark_price   = float(data.get('p', 0))
-                        funding_rate = float(data.get('r', 0))
-
-                    elif event == 'depthUpdate' or ('b' in data and 'a' in data):
-                        bids = data.get('b', data.get('bids', []))
-                        asks = data.get('a', data.get('asks', []))
-                        if bids and asks:
-                            best_bid_p = float(bids[0][0])
-                            best_bid_q = float(bids[0][1])
-                            best_ask_p = float(asks[0][0])
-                            best_ask_q = float(asks[0][1])
-
-                            latest_book.best_bid_price = int(best_bid_p * 1e8)
-                            latest_book.best_ask_price = int(best_ask_p * 1e8)
-                            latest_book.best_bid_qty   = int(best_bid_q * 1e8)
-                            latest_book.best_ask_qty   = int(best_ask_q * 1e8)
-                            latest_book.bid_count = 1
-                            latest_book.ask_count = 1
-
-                            engine.on_book_update(latest_book)
-
+                for rec in new_records:
+                    side_str = "BUY" if rec.side == hft_engine.Side.BID else "SELL"
+                    with open(PaperState.trade_log_file, "a", newline="") as f:
+                        writer = csv.writer(f)
+                        # Re-calculate features here for the CSV since we can't easily fetch historical features 
+                        # natively from Python in this async loop easily without locking.
+                        # Using last_features() is a slight approximation for the CSV log in this architecture.
+                        fv = engine.last_features()
+                        writer.writerow([
+                            PaperState.run_id, rec.timestamp_ns, side_str,
+                            rec.entry_price/1e8, rec.exit_price/1e8,
+                            abs(rec.quantity)/1e8, rec.pnl, rec.slippage,
+                            fv.combined_alpha, fv.realized_vol, fv.vpin, fv.ofi, fv.obi, 
+                            fv.spread_bps, fv.cvd, fv.hawkes_intensity, int(fv.regime)
+                        ])
+                PaperState.journal_idx = len(journal)
+                
+            await asyncio.sleep(1.0) # Flush at 1Hz
         except Exception as e:
-            print(f"[ERROR] Binance Futures WS Disconnected: {e}. Reconnecting in 2s...")
-            await asyncio.sleep(2)
+            print(f"[ERROR] Log Flusher Exception: {e}")
+            await asyncio.sleep(1)
 
 # ─── API Endpoints ─────────────────────────────────────────────
 class TradeControl(BaseModel):
     is_trading: bool
 
 from fastapi.responses import FileResponse
+from fastapi.background import BackgroundTasks
+import shutil
 
 @app.get("/")
 async def get_dashboard():
@@ -242,6 +246,35 @@ async def get_dashboard():
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "timestamp": time.time(), "is_trading": PaperState.is_trading}
+
+@app.get("/api/export")
+async def export_data(background_tasks: BackgroundTasks):
+    """Zip all trade CSVs and account state and return for download."""
+    zip_filename = f"hft_export_{PaperState.run_id}.zip"
+    
+    # Create a temporary directory to gather files
+    temp_dir = f"temp_export_{PaperState.run_id}"
+    os.makedirs(temp_dir, exist_ok=True)
+    
+    # Copy current logs and state
+    if os.path.exists(ACCOUNT_FILE):
+        shutil.copy(ACCOUNT_FILE, os.path.join(temp_dir, ACCOUNT_FILE))
+        
+    for f in glob.glob("paper_trades_*.csv"):
+        shutil.copy(f, os.path.join(temp_dir, f))
+        
+    for f in glob.glob("paper_trades_*.zip"):
+        shutil.copy(f, os.path.join(temp_dir, f))
+        
+    # Zip the directory
+    shutil.make_archive(zip_filename.replace('.zip', ''), 'zip', temp_dir)
+    
+    # Cleanup temp directory
+    shutil.rmtree(temp_dir)
+    
+    # Send the zip file, and remove it after sending
+    background_tasks.add_task(os.remove, zip_filename)
+    return FileResponse(zip_filename, media_type="application/zip", filename=zip_filename)
 
 
 @app.post("/api/trade_control")
@@ -254,17 +287,29 @@ async def get_trade_status():
     return {"is_trading": PaperState.is_trading}
 
 # ─── Dashboard Telemetry Server ────────────────────────────────
+chart_history = collections.deque(maxlen=100)
+
 @app.websocket("/ws/telemetry")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     print("[INFO] Dashboard connected.")
+    
+    # Send history on connect
+    history_payload = {
+        "type": "history",
+        "data": list(chart_history)
+    }
+    await websocket.send_json(history_payload)
+    
     try:
         while True:
             fv = engine.last_features()
             mid_price = (latest_book.best_bid_price + latest_book.best_ask_price) / 2 / 1e8
             equity = engine.equity()
             
+            pending = engine.pending_order()
             payload = {
+                "type": "update",
                 "timestamp": time.time(),
                 "alpha": fv.combined_alpha,
                 "vpin": fv.vpin,
@@ -277,9 +322,16 @@ async def websocket_endpoint(websocket: WebSocket):
                 "inventory": engine.position() / 1e8,
                 "cash": 0,
                 "funding_rate": funding_rate,
-                "mark_price": mark_price
+                "mark_price": mark_price,
+                "pending_order": {
+                    "active": pending.active,
+                    "side": "BID" if pending.side == hft_engine.Side.BID else ("ASK" if pending.side == hft_engine.Side.ASK else "NONE"),
+                    "price": pending.price / 1e8,
+                    "qty": pending.qty / 1e8,
+                    "queue_position": pending.queue_position / 1e8
+                }
             }
-            
+            chart_history.append(payload)
             await websocket.send_json(payload)
             await asyncio.sleep(0.1) # 10Hz
     except (websockets.exceptions.ConnectionClosed, WebSocketDisconnect, RuntimeError):

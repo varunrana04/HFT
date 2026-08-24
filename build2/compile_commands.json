@@ -1,0 +1,112 @@
+[
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_core.dir/cpp/core/market_data.cpp.o -c /app/cpp/core/market_data.cpp",
+  "file": "/app/cpp/core/market_data.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_core.dir/cpp/core/order_book.cpp.o -c /app/cpp/core/order_book.cpp",
+  "file": "/app/cpp/core/order_book.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_core.dir/cpp/core/feature_engine.cpp.o -c /app/cpp/core/feature_engine.cpp",
+  "file": "/app/cpp/core/feature_engine.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_core.dir/cpp/core/signal_combiner.cpp.o -c /app/cpp/core/signal_combiner.cpp",
+  "file": "/app/cpp/core/signal_combiner.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_core.dir/cpp/core/risk_manager.cpp.o -c /app/cpp/core/risk_manager.cpp",
+  "file": "/app/cpp/core/risk_manager.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_core.dir/cpp/core/order_manager.cpp.o -c /app/cpp/core/order_manager.cpp",
+  "file": "/app/cpp/core/order_manager.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_core.dir/cpp/core/data_validator.cpp.o -c /app/cpp/core/data_validator.cpp",
+  "file": "/app/cpp/core/data_validator.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_core.dir/cpp/core/strategy_engine.cpp.o -c /app/cpp/core/strategy_engine.cpp",
+  "file": "/app/cpp/core/strategy_engine.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_core.dir/cpp/net/dpdk_rx.cpp.o -c /app/cpp/net/dpdk_rx.cpp",
+  "file": "/app/cpp/net/dpdk_rx.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_core.dir/cpp/net/dpdk_tx.cpp.o -c /app/cpp/net/dpdk_tx.cpp",
+  "file": "/app/cpp/net/dpdk_tx.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -Dhft_engine_EXPORTS -I/app/cpp/core -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -isystem /app/build2/_deps/pybind11-src/include -isystem /usr/local/include/python3.10 -O3 -mavx2 -mfma -mno-xop -DNDEBUG -fPIC -fvisibility=hidden -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -flto -fno-fat-lto-objects -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_engine.dir/cpp/bindings/py_engine.cpp.o -c /app/cpp/bindings/py_engine.cpp",
+  "file": "/app/cpp/bindings/py_engine.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/app/cpp/tests -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -Wno-unused-variable -Wno-unused-function -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_tests.dir/cpp/tests/test_main.cpp.o -c /app/cpp/tests/test_main.cpp",
+  "file": "/app/cpp/tests/test_main.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/app/cpp/tests -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -Wno-unused-variable -Wno-unused-function -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_tests.dir/cpp/tests/test_types.cpp.o -c /app/cpp/tests/test_types.cpp",
+  "file": "/app/cpp/tests/test_types.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/app/cpp/tests -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -Wno-unused-variable -Wno-unused-function -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_tests.dir/cpp/tests/test_spsc_queue.cpp.o -c /app/cpp/tests/test_spsc_queue.cpp",
+  "file": "/app/cpp/tests/test_spsc_queue.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/app/cpp/tests -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -Wno-unused-variable -Wno-unused-function -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_tests.dir/cpp/tests/test_memory_pool.cpp.o -c /app/cpp/tests/test_memory_pool.cpp",
+  "file": "/app/cpp/tests/test_memory_pool.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/app/cpp/tests -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -Wno-unused-variable -Wno-unused-function -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_tests.dir/cpp/tests/test_order_book.cpp.o -c /app/cpp/tests/test_order_book.cpp",
+  "file": "/app/cpp/tests/test_order_book.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/app/cpp/tests -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -Wno-unused-variable -Wno-unused-function -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_tests.dir/cpp/tests/test_data_validator.cpp.o -c /app/cpp/tests/test_data_validator.cpp",
+  "file": "/app/cpp/tests/test_data_validator.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/app/cpp/tests -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -Wno-unused-variable -Wno-unused-function -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_tests.dir/cpp/tests/test_feature_engine.cpp.o -c /app/cpp/tests/test_feature_engine.cpp",
+  "file": "/app/cpp/tests/test_feature_engine.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/app/cpp/tests -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -Wno-unused-variable -Wno-unused-function -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_tests.dir/cpp/tests/test_risk_manager.cpp.o -c /app/cpp/tests/test_risk_manager.cpp",
+  "file": "/app/cpp/tests/test_risk_manager.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/app/cpp/tests -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -Wno-unused-variable -Wno-unused-function -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_tests.dir/cpp/tests/test_strategy_engine.cpp.o -c /app/cpp/tests/test_strategy_engine.cpp",
+  "file": "/app/cpp/tests/test_strategy_engine.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_bench.dir/cpp/bench/latency_profiler.cpp.o -c /app/cpp/bench/latency_profiler.cpp",
+  "file": "/app/cpp/bench/latency_profiler.cpp"
+},
+{
+  "directory": "/app/build2",
+  "command": "/usr/bin/c++ -DHFT_USE_DPDK -I/app/cpp/core -I/usr/include/dpdk -I/usr/include/dpdk/../x86_64-linux-gnu/dpdk -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include -O3 -mavx2 -mfma -mno-xop -DNDEBUG -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions -mavx512f -include rte_config.h -march=corei7 -std=gnu++20 -o CMakeFiles/hft_sim.dir/cpp/bench/institutional_simulator.cpp.o -c /app/cpp/bench/institutional_simulator.cpp",
+  "file": "/app/cpp/bench/institutional_simulator.cpp"
+}
+]

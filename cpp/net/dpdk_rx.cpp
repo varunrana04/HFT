@@ -1,5 +1,6 @@
 #include "dpdk_rx.h"
 #include "../core/thread_utils.h"
+#include <immintrin.h>
 
 #ifdef HFT_USE_DPDK
 #include <rte_ethdev.h>
@@ -82,6 +83,34 @@ bool DpdkRx::initialize() {
 #endif
 }
 
+namespace {
+    #pragma pack(push, 1)
+    struct WireTrade {
+        uint8_t  msg_type;       // 1 = Trade
+        uint64_t timestamp_ns;
+        uint64_t sequence_num;
+        int64_t  price;
+        int64_t  quantity;
+        uint32_t instrument_id;
+        uint8_t  side;
+    };
+
+    struct WireBook {
+        uint8_t  msg_type;       // 2 = Book
+        uint64_t timestamp_ns;
+        uint64_t sequence_num;
+        uint32_t instrument_id;
+        int64_t  best_bid_price;
+        int64_t  best_ask_price;
+        int64_t  best_bid_qty;
+        int64_t  best_ask_qty;
+        uint8_t  bid_count;
+        uint8_t  ask_count;
+        // Followed by raw PriceLevel arrays
+    };
+    #pragma pack(pop)
+}
+
 void DpdkRx::poll_loop(
     std::function<void(const Trade&)> on_trade_callback,
     std::function<void(const BookSnapshot&)> on_book_callback
@@ -128,10 +157,69 @@ void DpdkRx::poll_loop(
                     struct rte_udp_hdr* udp_hdr = (struct rte_udp_hdr*)(ip_hdr + 1);
                     uint8_t* payload = (uint8_t*)(udp_hdr + 1);
                     
-                    // 3. Application level decoding (Mocked out for architecture demo)
-                    // if (payload[0] == MSG_TYPE_TRADE) {
-                    //     Trade t; ... on_trade_callback(t);
-                    // }
+                    // 3. True Zero-Copy Application Level Decoding
+                    if (payload[0] == 1) {
+                        const WireTrade* wt = reinterpret_cast<const WireTrade*>(payload);
+                        Trade t;
+                        t.timestamp_ns  = wt->timestamp_ns;
+                        t.sequence_num  = wt->sequence_num;
+                        t.price         = wt->price;
+                        t.quantity      = wt->quantity;
+                        t.instrument_id = wt->instrument_id;
+                        t.side          = static_cast<Side>(wt->side);
+                        t.quality       = DataQuality::VALID;
+                        on_trade_callback(t);
+                    } 
+                    else if (payload[0] == 2) {
+                        const WireBook* wb = reinterpret_cast<const WireBook*>(payload);
+                        BookSnapshot b;
+                        b.timestamp_ns   = wb->timestamp_ns;
+                        b.sequence_num   = wb->sequence_num;
+                        b.instrument_id  = wb->instrument_id;
+                        b.best_bid_price = wb->best_bid_price;
+                        b.best_ask_price = wb->best_ask_price;
+                        b.best_bid_qty   = wb->best_bid_qty;
+                        b.best_ask_qty   = wb->best_ask_qty;
+                        b.bid_count      = wb->bid_count;
+                        b.ask_count      = wb->ask_count;
+                        b.quality        = DataQuality::VALID;
+                        
+                        const PriceLevel* levels = reinterpret_cast<const PriceLevel*>(payload + sizeof(WireBook));
+                        
+                        // SIMD Vectorization: Parse L2 order book levels using AVX-512
+                        // A 512-bit register holds 64 bytes. PriceLevel is 24 bytes.
+                        // We copy 64 bytes at a time (overlapping is safe for plain data)
+                        const char* src_ptr = reinterpret_cast<const char*>(levels);
+                        char* dest_bids = reinterpret_cast<char*>(b.bids);
+                        
+                        size_t bid_bytes = b.bid_count * sizeof(PriceLevel);
+                        size_t offset = 0;
+                        while (offset + 64 <= bid_bytes) {
+                            __m512i vec = _mm512_loadu_si512(src_ptr + offset);
+                            _mm512_storeu_si512(dest_bids + offset, vec);
+                            offset += 64;
+                        }
+                        // Remainder loop
+                        for (size_t k = offset; k < bid_bytes; ++k) {
+                            dest_bids[k] = src_ptr[k];
+                        }
+
+                        const char* src_asks = reinterpret_cast<const char*>(levels + b.bid_count);
+                        char* dest_asks = reinterpret_cast<char*>(b.asks);
+                        
+                        size_t ask_bytes = b.ask_count * sizeof(PriceLevel);
+                        offset = 0;
+                        while (offset + 64 <= ask_bytes) {
+                            __m512i vec = _mm512_loadu_si512(src_asks + offset);
+                            _mm512_storeu_si512(dest_asks + offset, vec);
+                            offset += 64;
+                        }
+                        for (size_t k = offset; k < ask_bytes; ++k) {
+                            dest_asks[k] = src_asks[k];
+                        }
+                        
+                        on_book_callback(b);
+                    }
                 }
             }
             

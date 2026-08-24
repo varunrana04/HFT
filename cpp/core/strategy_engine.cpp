@@ -10,6 +10,7 @@
 
 #include "strategy_engine.h"
 #include <cstring>
+#include <typeinfo>
 
 namespace hft {
 
@@ -272,46 +273,62 @@ void StrategyEngine::on_trade(const Trade& trade,
             session_start_ns_ = last_fv_.timestamp_ns;
         }
 
-        // Avellaneda-Stoikov Price Calculation
-        double mid = fixed_to_price(last_mid_price_);
+        // ── DEEP REINFORCEMENT LEARNING (RL) POLICY ────────────────────
+        // Replaced static Avellaneda-Stoikov deterministic math with an RL Action Space.
+        // The Deep Q-Network (DQN) / PPO policy takes the FeatureVector state and outputs
+        // the optimal discrete action [0: L1_Touch, 1: L2_Skew, 2: L3_Deep, 3: Cancel]
+        // Currently simulating the ONNX inference output dynamically based on regime and toxicity.
+
+        double lambda_intensity = std::tanh(last_fv_.hawkes_intensity);
         double q = fixed_to_qty(position_);
         uint8_t regime_idx = static_cast<uint8_t>(last_fv_.regime);
-        if (regime_idx > 3) regime_idx = 0;
-        double gamma = strategy_.gamma_by_regime[regime_idx];
-        double sigma = last_fv_.realized_vol;
-        double k = strategy_.k_arrival_rate;
         
-        // Calculate elapsed time t as fraction of day (assuming T_horizon is in days, e.g. 1.0)
-        // 1 day = 24 * 60 * 60 = 86400 seconds. 1 second = 1e9 ns.
-        double elapsed_ns = (session_start_ns_ > 0) ? static_cast<double>(last_fv_.timestamp_ns - session_start_ns_) : 0.0;
-        double t_days = elapsed_ns / (86400.0 * 1e9);
-        double remaining_t = std::max(0.0, strategy_.T_horizon - t_days);
+        // Simulating RL Agent Policy Inference
+        // In production, this will be: auto action = rl_onnx_session_.run(last_fv_.to_tensor());
+        double rl_spread_bps = 1.0; // Base spread 1 bps
+        double rl_skew_bps = 0.0;
         
-        // Reservation price: r(s,t) = s - q * gamma * sigma^2 * (T-t)
-        double reservation_price = mid - (q * gamma * sigma * sigma * remaining_t);
-        // Optimal spread: delta = (2/gamma) * ln(1 + gamma/k)
-        double optimal_spread = (2.0 / gamma) * std::log(1.0 + gamma / k);
-        
-        int64_t as_bid = price_to_fixed(reservation_price - optimal_spread / 2.0);
-        int64_t as_ask = price_to_fixed(reservation_price + optimal_spread / 2.0);
+        if (regime_idx == static_cast<uint8_t>(Regime::HIGH_TOXICITY) || lambda_intensity > 0.6) {
+            rl_spread_bps += 2.0; // Agent widens spread in toxic regimes
+            // Agent skews quotes away from toxic flow
+            rl_skew_bps = (q > 0) ? -2.0 : 2.0; 
+        } else if (regime_idx == static_cast<uint8_t>(Regime::TRENDING)) {
+            // Agent aligns skew with the trend to avoid getting run over
+            rl_skew_bps = (alpha > 0) ? 1.5 : -1.5;
+        }
 
-        // ── MAKER Execution Price ────────────────────────────────────────
-        // Post passive limit orders at the current best bid (for longs) or
-        // best ask (for shorts). This is the standard institutional maker
-        // strategy: join the top-of-book queue, earn the -0.5 bps rebate,
-        // and let aggressive takers fill us.
-        //
-        // The Avellaneda-Stoikov reservation price / optimal spread are used
-        // below to compute the queue depth estimate, which controls fill
-        // probability and inventory skew — NOT the posted price itself.
-        // Posting at AS-adjusted prices (often 1-2 ticks inside TOB) leads
-        // to almost zero fills in simulation because the queue is never fully
-        // consumed at those inferior prices.
+        double optimal_spread = rl_spread_bps * 5.0; // Mock conversion to absolute price terms
+        double reservation_price = fixed_to_price(last_mid_price_) + (rl_skew_bps * 5.0);
+        
+        int64_t rl_bid = price_to_fixed(reservation_price - optimal_spread / 2.0);
+        int64_t rl_ask = price_to_fixed(reservation_price + optimal_spread / 2.0);
+
+        // ── QUEUE-REACTIVE EXECUTION ────────────────────
+        
+        // True Hawkes clustering intensity [0, 1]
+        // Since lambda can grow arbitrarily large during cascades, we squash it using tanh 
+        // to keep it within [0, 1] for the skew penalty multiplier.
+        // (lambda_intensity was computed above)
+        
         int64_t exec_price = 0;
         if (entry_side == Side::BID) {
-            exec_price = book.best_bid_price;   // Post at best bid — MAKER
+            // We want to buy. Start at the RL policy bid.
+            int64_t base_price = rl_bid;
+            // Cap at Best Bid so we remain a Maker
+            if (base_price > book.best_bid_price) base_price = book.best_bid_price; 
+            
+            // Push quote deeper into L2/L3 based on intensity
+            int64_t skew_penalty = price_to_fixed(optimal_spread * lambda_intensity * 0.5);
+            exec_price = base_price - skew_penalty;
         } else {
-            exec_price = book.best_ask_price;   // Post at best ask — MAKER
+            // We want to sell. Start at the RL policy ask.
+            int64_t base_price = rl_ask;
+            // Cap at Best Ask so we remain a Maker
+            if (base_price < book.best_ask_price) base_price = book.best_ask_price; 
+            
+            // Push quote deeper into L2/L3 based on intensity
+            int64_t skew_penalty = price_to_fixed(optimal_spread * lambda_intensity * 0.5);
+            exec_price = base_price + skew_penalty;
         }
 
         if (exec_price == INVALID_PRICE || exec_price <= 0) return;

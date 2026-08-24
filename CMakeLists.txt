@@ -13,7 +13,13 @@ if(MSVC)
 else()
     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -mavx2 -mfma -mno-xop -DNDEBUG")
     set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -mavx2 -mfma -mno-xop -fsanitize=address,undefined")
-    add_compile_options(-Wall -Wextra -Wpedantic -Wconversion -Wshadow -static-libgcc -static-libstdc++)
+    add_compile_options(-Wall -Wextra -Wpedantic -Wconversion -Wshadow -fexceptions)
+    
+    option(USE_AVX512 "Enable AVX-512 instructions" OFF)
+    if(USE_AVX512)
+        add_compile_options(-mavx512f)
+        message(STATUS "AVX-512 explicitly enabled via USE_AVX512")
+    endif()
 endif()
 
 # ─── ONNX Runtime (optional) ──────────────────────────────────
@@ -98,10 +104,17 @@ if(HFT_USE_DPDK)
 endif()
 
 # ─── Core Engine Library ───────────────────────────────────────
+# Check if simdjson.cpp exists (it will inside Docker)
+if(EXISTS "/usr/local/include/simdjson/simdjson.cpp")
+    set(SIMDJSON_SRC "/usr/local/include/simdjson/simdjson.cpp")
+else()
+    set(SIMDJSON_SRC "") # Fallback for local IDE parsing
+endif()
+
 add_library(hft_core STATIC
     cpp/core/market_data.cpp
     cpp/core/order_book.cpp
-    cpp/core/features.cpp
+    cpp/core/feature_engine.cpp
     cpp/core/signal_combiner.cpp
     cpp/core/risk_manager.cpp
     cpp/core/order_manager.cpp
@@ -109,22 +122,52 @@ add_library(hft_core STATIC
     cpp/core/strategy_engine.cpp
     cpp/net/dpdk_rx.cpp
     cpp/net/dpdk_tx.cpp
+    cpp/gateway/binance_ws.cpp
+    ${SIMDJSON_SRC}
 )
-target_include_directories(hft_core PUBLIC cpp/core)
+target_include_directories(hft_core PUBLIC cpp/core cpp/net cpp/gateway)
+target_compile_options(hft_core PRIVATE -fexceptions)
+set_target_properties(hft_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if(HFT_ONNX_SUPPORT)
-    target_compile_definitions(hft_core PUBLIC HFT_ONNX_SUPPORT)
-    target_include_directories(hft_core SYSTEM PUBLIC ${ORT_INCLUDE_DIRS})
     target_link_libraries(hft_core PUBLIC ${ORT_LIBRARIES})
+    target_include_directories(hft_core PUBLIC ${ORT_INCLUDE_DIRS})
+    target_compile_definitions(hft_core PUBLIC HFT_ONNX_SUPPORT)
     message(STATUS "[hft_core] ONNX Runtime inference: ENABLED")
 else()
     message(STATUS "[hft_core] ONNX Runtime inference: DISABLED "
                    "(build with -DHFT_ONNX_SUPPORT=ON to enable)")
 endif()
 
+# Find uWebSockets dependencies (for server, if we needed it)
+find_library(USOCKETS_LIB uSockets /usr/local/lib)
+if(USOCKETS_LIB)
+    target_link_libraries(hft_core PUBLIC ${USOCKETS_LIB} z ssl crypto)
+    message(STATUS "[hft_core] uWebSockets gateway: ENABLED")
+endif()
+
+# ─── IXWebSocket (For Binance C++ Client) ────────────────────────
+include(FetchContent)
+set(USE_TLS ON CACHE BOOL "IXWebSocket use TLS")
+FetchContent_Declare(
+    ixwebsocket
+    GIT_REPOSITORY https://github.com/machinezone/IXWebSocket.git
+    GIT_TAG        v11.4.4
+)
+FetchContent_MakeAvailable(ixwebsocket)
+target_link_libraries(hft_core PUBLIC ixwebsocket)
+message(STATUS "[hft_core] IXWebSocket client: ENABLED")
+
 if(HFT_USE_DPDK)
     target_compile_definitions(hft_core PUBLIC HFT_USE_DPDK)
-    target_include_directories(hft_core SYSTEM PUBLIC ${DPDK_INCLUDE_DIRS})
+    target_include_directories(hft_core PUBLIC ${DPDK_INCLUDE_DIRS})
+    
+    # Remove -include rte_config.h as it breaks <cmath> and <atomic> in C++20 when processed before standard headers
+    string(REPLACE "-include rte_config.h" "" DPDK_CFLAGS_OTHER_STR "${DPDK_CFLAGS_OTHER}")
+    string(REPLACE ";" " " DPDK_CFLAGS_OTHER_STR "${DPDK_CFLAGS_OTHER_STR}")
+    separate_arguments(DPDK_CFLAGS_CLEAN UNIX_COMMAND "${DPDK_CFLAGS_OTHER_STR}")
+    
+    target_compile_options(hft_core PUBLIC ${DPDK_CFLAGS_CLEAN})
     target_link_options(hft_core PUBLIC ${DPDK_LDFLAGS})
     target_link_libraries(hft_core PUBLIC ${DPDK_LIBRARIES})
     message(STATUS "[hft_core] DPDK Kernel Bypass: ENABLED")
@@ -148,7 +191,8 @@ if(HFT_BUILD_PYTHON)
 
         pybind11_add_module(hft_engine cpp/bindings/py_engine.cpp)
         target_link_libraries(hft_engine PRIVATE hft_core)
-        target_include_directories(hft_engine PRIVATE cpp/core)
+        target_compile_options(hft_engine PRIVATE -fexceptions)
+        target_include_directories(hft_engine PRIVATE cpp/core cpp/gateway cpp)
         if(NOT MSVC)
             target_link_options(hft_engine PRIVATE -static-libgcc -static-libstdc++)
         endif()
@@ -200,7 +244,7 @@ if(HFT_BUILD_TESTS)
         cpp/tests/test_memory_pool.cpp
         cpp/tests/test_order_book.cpp
         cpp/tests/test_data_validator.cpp
-        cpp/tests/test_features.cpp
+        cpp/tests/test_feature_engine.cpp
         cpp/tests/test_risk_manager.cpp
         cpp/tests/test_strategy_engine.cpp
     )
@@ -219,8 +263,13 @@ if(HFT_BUILD_BENCHMARKS)
     add_executable(hft_bench
         cpp/bench/latency_profiler.cpp
     )
+    add_executable(hft_sim
+        cpp/bench/institutional_simulator.cpp
+    )
     target_link_libraries(hft_bench PRIVATE hft_core)
     target_include_directories(hft_bench PRIVATE cpp/core)
+    target_link_libraries(hft_sim PRIVATE hft_core)
+    target_include_directories(hft_sim PRIVATE cpp/core)
 endif()
 
 # ─── Build summary ─────────────────────────────────────────────

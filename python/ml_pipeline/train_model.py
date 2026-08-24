@@ -109,9 +109,7 @@ BASE_SIGNALS = [
     'microprice', 'ofi', 'vpin',
     'spread_bps', 'realized_vol', 'stat_arb_zscore',
     'obi', 'trade_imbalance',
-    'microprice_z10', 'microprice_z50',
-    'ofi_z10', 'ofi_z50',
-    'obi_z10', 'obi_z50',
+    'hawkes_intensity', 'cvd', 'hurst_exponent'
 ]
 
 # Columns always present in the feature dump CSV
