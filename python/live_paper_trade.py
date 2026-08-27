@@ -82,6 +82,9 @@ sentiment_score: float = 0.0
 rl_position_mult: float = 1.0
 # Base order size from config (captured at boot; RL scales around this)
 _base_order_size_btc: float = 1.0
+# Cross-venue stat-arb: Bybit BTCUSDT perp mid-price and spread vs Binance
+bybit_mid: float = 0.0
+cross_venue_spread_bps: float = 0.0   # (binance_mid - bybit_mid) / bybit_mid * 10000
 
 from contextlib import asynccontextmanager
 
@@ -254,6 +257,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(funding_rate_loop())
     asyncio.create_task(user_data_loop(gateway))
     asyncio.create_task(sentiment_loop())
+    asyncio.create_task(bybit_ws_loop())
 
     yield
 
@@ -629,6 +633,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 "hawkes": fv.hawkes_intensity,
                 "sentiment": sentiment_score,
                 "rl_mult": rl_position_mult,
+                "bybit_mid": bybit_mid,
+                "cross_venue_spread_bps": cross_venue_spread_bps,
                 "best_bid": latest_book.best_bid_price / 1e8,
                 "best_ask": latest_book.best_ask_price / 1e8,
                 "equity": equity,
@@ -950,14 +956,16 @@ async def ml_bridge_loop():
             if len(time_sampled_prices) < 30:
                 continue
             try:
-                model = regime_model['model']
-                mean  = regime_model['mean']
-                std   = regime_model['std']
+                model        = regime_model['model']
+                mean         = regime_model['mean']
+                std          = regime_model['std']
+                state_mapping = regime_model.get('state_mapping', {})
 
                 X_curr   = np.array([[realized_vol_raw, fv.spread_bps]])
                 X_scaled = (X_curr - mean) / (std + 1e-10)
                 state_arr = await loop.run_in_executor(None, model.predict, X_scaled)
-                state = int(state_arr[0])
+                raw_state = int(state_arr[0])
+                state = state_mapping.get(raw_state, raw_state)   # remap by vol order
 
                 if state == 3:
                     if not getattr(engine, '_halted', False):
@@ -967,15 +975,15 @@ async def ml_bridge_loop():
                         except AttributeError:
                             pass
                 else:
-                    daily_limit = getattr(getattr(engine, 'config', None), 'daily_loss_limit_usd', 500.0)
-                    current_loss = engine.config.initial_capital - engine.equity()
+                    daily_limit  = getattr(getattr(engine, 'config', None), 'daily_loss_limit_usd', 50_000.0)
+                    current_loss = getattr(engine, '_session_start_equity', engine.equity()) - engine.equity()
                     if getattr(engine, '_halted', False) and current_loss < daily_limit * 0.5:
                         try:
                             engine._halted = False
                         except AttributeError:
                             pass
 
-                print(f"[ML BRIDGE] HMM State {state} | Vol: {realized_vol_raw:.4f} | Alpha: {fv.combined_alpha:.4f} | VPIN: {fv.vpin:.3f} | RLmult: {rl_position_mult:.2f}")
+                print(f"[ML BRIDGE] GMM State {state} | Vol: {realized_vol_raw:.4f} | Alpha: {fv.combined_alpha:.4f} | VPIN: {fv.vpin:.3f} | RLmult: {rl_position_mult:.2f} | CVSpread: {cross_venue_spread_bps:.2f}bps")
             except asyncio.CancelledError:
                 break
             except Exception:
@@ -1014,6 +1022,66 @@ async def sentiment_loop():
         except Exception:
             pass
         await asyncio.sleep(300)  # poll every 5 minutes
+
+
+# ─── Cross-Venue Stat-Arb: Bybit BTCUSDT Perp WS ─────────────────
+async def bybit_ws_loop():
+    """
+    Connects to Bybit public WebSocket and tracks BTCUSDT linear perp best bid/ask.
+    Updates bybit_mid and cross_venue_spread_bps globals.
+    Cross-venue spread > threshold injects +/- signal into the engine's combined_alpha.
+    """
+    global bybit_mid, cross_venue_spread_bps
+    BYBIT_WS  = "wss://stream.bybit.com/v5/public/linear"
+    SUBSCRIBE = {"op": "subscribe", "args": ["orderbook.1.BTCUSDT"]}
+    SPREAD_THRESHOLD_BPS = 3.0   # act when spread > 3 bps
+    ALPHA_SCALE          = 0.1   # how much to nudge combined_alpha per bps of spread
+
+    backoff = 1.0
+    print("[BYBIT] Starting cross-venue stat-arb loop...")
+    while True:
+        try:
+            async with websockets.connect(BYBIT_WS, ping_interval=20, ping_timeout=10) as ws:
+                await ws.send(json.dumps(SUBSCRIBE))
+                print("[BYBIT] Connected to Bybit orderbook stream.")
+                backoff = 1.0
+                async for raw in ws:
+                    try:
+                        msg = json.loads(raw)
+                        # Bybit orderbook.1 snapshot/delta
+                        topic = msg.get("topic", "")
+                        if "orderbook" not in topic:
+                            continue
+                        bids = msg.get("data", {}).get("b", [])
+                        asks = msg.get("data", {}).get("a", [])
+                        if not bids or not asks:
+                            continue
+                        bb = float(bids[0][0])
+                        ba = float(asks[0][0])
+                        bybit_mid = (bb + ba) / 2.0
+
+                        # Compute cross-venue spread
+                        if latest_book.best_bid_price > 0 and bybit_mid > 0:
+                            binance_mid = (latest_book.best_bid_price + latest_book.best_ask_price) / 2.0 / 1e8
+                            spread_bps  = (binance_mid - bybit_mid) / bybit_mid * 10_000
+                            cross_venue_spread_bps = spread_bps
+
+                            # Inject stat-arb signal into engine alpha
+                            if abs(spread_bps) > SPREAD_THRESHOLD_BPS:
+                                nudge = (spread_bps - SPREAD_THRESHOLD_BPS) * ALPHA_SCALE \
+                                        if spread_bps > 0 else \
+                                        (spread_bps + SPREAD_THRESHOLD_BPS) * ALPHA_SCALE
+                                fv = engine.last_features()
+                                fv.combined_alpha = max(-1.0, min(1.0, fv.combined_alpha + nudge))
+                                engine._last_features.combined_alpha = fv.combined_alpha
+                    except Exception:
+                        pass
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[BYBIT] Disconnected: {e}. Reconnecting in {backoff:.0f}s...")
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 1.5, 30.0)
 
 
 # ─── Daily Reset Loop ──────────────────────────────────────────
