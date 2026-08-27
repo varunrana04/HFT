@@ -4,7 +4,7 @@ services:
     env: docker
     plan: starter
     region: singapore
-    branch: master
+    branch: main
     dockerfilePath: ./Dockerfile
     ports:
       - port: 8080
