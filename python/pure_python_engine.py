@@ -25,7 +25,7 @@ class StrategyConfig:
         self.maker_fee_pct           = -0.00005
         self.order_size_btc          = 1.0
         self.max_position_btc        = 5.0
-        self.daily_loss_limit_usd    = 500.0
+        self.daily_loss_limit_usd    = 50_000.0    # 0.5% of 10M — recalibrated on boot
         self.vpin_halt_threshold     = 0.70
         self.execution_cooldown_ns   = 1_000_000_000 # 1 second cooldown
 
@@ -122,6 +122,9 @@ class StrategyEngine:
         self._vpin_window    = []
         self._VPIN_BUCKET    = 50.0
         self._last_trade_ns   = 0
+        # Session-start equity (set after loading DB state, reset daily)
+        # Kill switch measures loss from HERE, not from construction-time initial_capital
+        self._session_start_equity = config.initial_capital
         # CVD (Cumulative Volume Delta)
         self._cvd_buffer     = []
         self._CVD_WINDOW     = 200
@@ -182,6 +185,9 @@ class StrategyEngine:
         self._metrics.realized_pnl = pnl
         self._cash = self.config.initial_capital + pnl
         self._equity = self._cash
+        # Anchor the session baseline AFTER restoring historical PnL
+        self._session_start_equity = self._equity
+        self._peak_equity          = self._equity
 
     def realized_pnl(self) -> float:
         """Return realized PnL — mirrors the C++ engine interface used by log_flusher_loop."""
@@ -193,15 +199,16 @@ class StrategyEngine:
         Called at UTC Midnight. Rebases the initial capital to the current equity
         so that the daily loss limit tracks a new intraday watermark, and resets daily metrics.
         """
-        self.config.initial_capital = self._equity
-        self._metrics.realized_pnl = 0.0
-        self._metrics.total_pnl = 0.0
-        self._metrics.total_trades = 0
-        self._peak_equity = self._equity
+        self.config.initial_capital    = self._equity
+        self._session_start_equity     = self._equity   # new day baseline
+        self._metrics.realized_pnl     = 0.0
+        self._metrics.total_pnl        = 0.0
+        self._metrics.total_trades     = 0
+        self._peak_equity              = self._equity
         print(f"[ENGINE] New Trading Day Rollover. Capital rebased to ${self._equity:.2f}")
 
     def update_kill_switch_state(self, timestamp_ms: int):
-        loss = self.config.initial_capital - self._equity
+        loss = self._session_start_equity - self._equity
         if loss >= self.config.daily_loss_limit_usd:
             self._halted = True
             print(f"[RISK] KILL SWITCH TRIPPED AT BOOT: Loss ${loss:.2f} >= ${self.config.daily_loss_limit_usd}. HALTED.")
@@ -213,12 +220,10 @@ class StrategyEngine:
     def is_trading_halted(self, timestamp_ms: int) -> bool:
         """
         Returns True if the engine's internal kill switch has been tripped.
-        Mirrors the C++ KillSwitch::is_trading_halted() binding.
-        Also performs an inline daily-loss check so halts are caught in real time,
-        not just at boot (update_kill_switch_state is only called at startup).
+        Loss is measured from _session_start_equity (set at boot / daily rollover),
+        NOT from config.initial_capital which is rebased each midnight.
         """
-        # Inline check so we don't need an explicit periodic call
-        loss = self.config.initial_capital - self._equity
+        loss = self._session_start_equity - self._equity
         if loss >= self.config.daily_loss_limit_usd and not self._halted:
             self._halted = True
             print(f"[RISK] KILL SWITCH TRIPPED: Intraday loss ${loss:.2f} >= limit ${self.config.daily_loss_limit_usd}")
@@ -280,8 +285,8 @@ class StrategyEngine:
         if self._halted:
             return
 
-        # Daily loss limit
-        loss = self.config.initial_capital - self._equity
+        # Daily loss limit (measured from session start, not construction-time capital)
+        loss = self._session_start_equity - self._equity
         if loss >= self.config.daily_loss_limit_usd:
             self._halted = True
             print(f"[RISK] DAILY LOSS LIMIT: ${loss:.2f} >= ${self.config.daily_loss_limit_usd}. HALTED.")

@@ -358,6 +358,7 @@ config.alpha_entry_threshold = 0.03     # Lowered from 0.08 to increase trade fr
 config.alpha_short_multiplier = 1.1     # Lowered from 1.3
 config.spread_alpha_multiplier = 0.05   # Lowered from 0.18 to allow trading in normal spreads
 config.min_take_profit_bps    = 5.0     # Keep at 5 bps
+config.daily_loss_limit_usd   = loaded_capital * 0.005  # 0.5% of capital (~$50K on $10M)
 
 # ── Futures Fee Model (USDM Perp, Binance VIP0) ─────────────────
 # Maker: -0.5 bps (rebate), Taker: 1.5 bps. Strategy targets maker fills.
