@@ -902,18 +902,14 @@ async def ml_bridge_loop():
         # else:
         #     print(f"[ML BRIDGE] Buffering prices... ({len(time_sampled_prices)}/5000 for ADF)")
                 
-        # 2. Regime Prediction + write realized_vol to engine
-        fv = engine.last_features()
-
-        # Compute realized volatility from time_sampled_prices and feed it into the engine
-        # so the Python weight formula can use it (C++ computes this internally)
+        # Compute realized volatility from buffered prices (C++ floor=0.01 never updates in fallback)
+        realized_vol_raw = 0.01
         if len(time_sampled_prices) >= 30:
             prices_arr = np.array(list(time_sampled_prices)[-30:])
             log_rets   = np.diff(np.log(prices_arr + 1e-10))
-            realized_vol_raw = float(np.std(log_rets) * np.sqrt(len(log_rets) * 100)) # scale up slightly so it isn't tiny
+            realized_vol_raw = max(float(np.std(log_rets) * np.sqrt(len(log_rets) * 100)), 0.001)
 
         if regime_model and 'model' in regime_model:
-            # Wait until we have enough price history for a meaningful prediction
             if len(time_sampled_prices) < 30:
                 continue
             try:
@@ -921,10 +917,12 @@ async def ml_bridge_loop():
                 mean  = regime_model['mean']
                 std   = regime_model['std']
 
-                X_curr   = np.array([[fv.realized_vol, fv.spread_bps]])
+                # Use locally computed vol — fv.realized_vol stays at 0.01 floor in pure-Python fallback
+                X_curr   = np.array([[realized_vol_raw, fv.spread_bps]])
                 X_scaled = (X_curr - mean) / (std + 1e-10)
                 state_arr = await loop.run_in_executor(None, model.predict, X_scaled)
                 state = int(state_arr[0])
+
 
                 if state == 3:
                     if not getattr(engine, '_halted', False):
@@ -942,7 +940,7 @@ async def ml_bridge_loop():
                         except AttributeError:
                             pass
 
-                print(f"[ML BRIDGE] HMM State {state} | Vol: {fv.realized_vol:.4f} | Alpha: {fv.combined_alpha:.4f} | VPIN: {fv.vpin:.3f}")
+                print(f"[ML BRIDGE] HMM State {state} | Vol: {realized_vol_raw:.4f} | Alpha: {fv.combined_alpha:.4f} | VPIN: {fv.vpin:.3f}")
             except asyncio.CancelledError:
                 break
             except Exception:

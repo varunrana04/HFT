@@ -169,7 +169,12 @@ class StrategyEngine:
         self._metrics.realized_pnl = pnl
         self._cash = self.config.initial_capital + pnl
         self._equity = self._cash
-        
+
+    def realized_pnl(self) -> float:
+        """Return realized PnL — mirrors the C++ engine interface used by log_flusher_loop."""
+        return self._metrics.realized_pnl
+
+
     def new_trading_day(self):
         """
         Called at UTC Midnight. Rebases the initial capital to the current equity
