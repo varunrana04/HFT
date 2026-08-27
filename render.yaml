@@ -2,9 +2,10 @@ services:
   - type: web
     name: hft-dashboard
     env: docker
-    plan: free
-    region: ohio
+    plan: starter
+    region: singapore
     branch: master
+    dockerfilePath: ./Dockerfile
     ports:
       - port: 8080
     envVars:
@@ -12,3 +13,29 @@ services:
         value: 8080
       - key: HOST
         value: 0.0.0.0
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      # ── Exchange settings ──────────────────────────────────────────────────
+      # Set BINANCE_MODE=LIVE to enable real order submission.
+      # Leave as PAPER for safe testnet simulation (no keys required).
+      - key: BINANCE_MODE
+        value: PAPER
+      - key: BINANCE_SYMBOL
+        value: BTCUSDT
+      - key: BINANCE_BASE_URL
+        value: https://testnet.binancefuture.com
+      - key: BINANCE_WS_BASE_URL
+        value: wss://fstream.binance.com
+      # ── Risk ──────────────────────────────────────────────────────────────
+      - key: STALE_ORDER_TTL_MS
+        value: "5000"
+      # ── Secrets (set in Render dashboard, not here) ────────────────────────
+      # - key: BINANCE_API_KEY
+      #   sync: false
+      # - key: BINANCE_API_SECRET
+      #   sync: false
+    disk:
+      name: hft-data
+      mountPath: /data
+      sizeGB: 1
+    healthCheckPath: /health

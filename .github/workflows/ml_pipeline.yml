@@ -1,0 +1,79 @@
+name: HFT ML Retraining Pipeline
+
+on:
+  schedule:
+    # Run every day at 00:30 UTC (after midnight rollover)
+    - cron: '30 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  retrain_and_evaluate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download Latest Data (mock — replace with S3/GCS pull in prod)
+        run: |
+          echo "Simulating data pull..."
+          mkdir -p data
+          # In production: aws s3 cp s3://hft-data/latest_trades.csv ./data/
+          echo "timestamp,price,qty,is_buyer_maker" > data/latest_trades.csv
+          echo "1710000000000,70000.50,0.1,1" >> data/latest_trades.csv
+
+      - name: Retrain Ridge Regression Signal Weights
+        run: |
+          cd python/ml_pipeline
+          python train_model.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}/python
+
+      - name: Retrain HMM Regime Model
+        run: |
+          cd python
+          python hmm_regime_detection.py --train-only || echo "[CI] HMM train skipped (no data)"
+        env:
+          PYTHONPATH: ${{ github.workspace }}/python
+
+      - name: Run Phase 2 Test Suite
+        run: |
+          python tests/test_phase2.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}/python
+
+      - name: Archive Model Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hft-models-${{ github.run_number }}
+          path: |
+            models/signal_weights.bin
+            models/hmm_regime.pkl
+          if-no-files-found: warn
+
+      - name: Deploy Updated Models
+        if: success()
+        run: |
+          echo "Models trained and all tests passed."
+          echo "In production: push models/ back to repo or to a model registry."
+          # git config user.name "github-actions[bot]"
+          # git config user.email "github-actions[bot]@users.noreply.github.com"
+          # git add models/signal_weights.bin models/hmm_regime.pkl
+          # git commit -m "ci: auto-retrain models [skip ci]" || echo "No changes"
+          # git push

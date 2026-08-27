@@ -37,6 +37,9 @@ class BookSnapshot:
         self.best_ask_qty   = 0
         self.bid_count      = 0
         self.ask_count      = 0
+        
+    def is_valid(self) -> bool:
+        return self.best_bid_price > 0 and self.best_ask_price > 0
 
 class Trade:
     def __init__(self):
@@ -91,7 +94,7 @@ def _load_signal_weights(path):
 
 
 class StrategyEngine:
-    def __init__(self, config):
+    def __init__(self, config: StrategyConfig):
         self.config          = config
         self.mode            = EngineMode.BACKTEST
         self.pos             = 0.0
@@ -101,6 +104,7 @@ class StrategyEngine:
         self._peak_equity    = config.initial_capital
         self._metrics        = PerformanceMetrics()
         self._last_features  = FeatureVector()
+        self._records        = []
         self._records        = []
         self._ticks          = 0
         self._stat_arb       = False
@@ -113,6 +117,16 @@ class StrategyEngine:
         self._vpin_window    = []
         self._VPIN_BUCKET    = 50.0
         self._last_trade_ns  = 0
+        
+    def pending_order(self):
+        class DummyOrder:
+            def __init__(self):
+                self.active = False
+                self.timestamp_ns = 0
+                self.side = Side.BID
+                self.price = 0
+                self.qty = 0
+        return DummyOrder()
 
     def load_model(self, path):
         self._weights = _load_signal_weights(path)
@@ -144,6 +158,58 @@ class StrategyEngine:
 
     def set_mode(self, mode):
         self.mode = mode
+
+    def set_position(self, pos: int):
+        self.pos = pos / 1e8
+
+    def set_avg_entry_price(self, price: float):
+        self._entry_price = int(price * 1e8)
+        
+    def set_realized_pnl(self, pnl: float):
+        self._metrics.realized_pnl = pnl
+        self._cash = self.config.initial_capital + pnl
+        self._equity = self._cash
+        
+    def new_trading_day(self):
+        """
+        Called at UTC Midnight. Rebases the initial capital to the current equity
+        so that the daily loss limit tracks a new intraday watermark, and resets daily metrics.
+        """
+        self.config.initial_capital = self._equity
+        self._metrics.realized_pnl = 0.0
+        self._metrics.total_pnl = 0.0
+        self._metrics.total_trades = 0
+        self._peak_equity = self._equity
+        print(f"[ENGINE] New Trading Day Rollover. Capital rebased to ${self._equity:.2f}")
+
+    def update_kill_switch_state(self, timestamp_ms: int):
+        loss = self.config.initial_capital - self._equity
+        if loss >= self.config.daily_loss_limit_usd:
+            self._halted = True
+            print(f"[RISK] KILL SWITCH TRIPPED AT BOOT: Loss ${loss:.2f} >= ${self.config.daily_loss_limit_usd}. HALTED.")
+            
+        if abs(self.pos) > self.config.max_position_btc:
+            self._halted = True
+            print(f"[RISK] KILL SWITCH TRIPPED AT BOOT: Pos {self.pos} > Max {self.config.max_position_btc}. HALTED.")
+
+    def is_trading_halted(self, timestamp_ms: int) -> bool:
+        """
+        Returns True if the engine's internal kill switch has been tripped.
+        Mirrors the C++ KillSwitch::is_trading_halted() binding.
+        Also performs an inline daily-loss check so halts are caught in real time,
+        not just at boot (update_kill_switch_state is only called at startup).
+        """
+        # Inline check so we don't need an explicit periodic call
+        loss = self.config.initial_capital - self._equity
+        if loss >= self.config.daily_loss_limit_usd and not self._halted:
+            self._halted = True
+            print(f"[RISK] KILL SWITCH TRIPPED: Intraday loss ${loss:.2f} >= limit ${self.config.daily_loss_limit_usd}")
+
+        if abs(self.pos) > self.config.max_position_btc and not self._halted:
+            self._halted = True
+            print(f"[RISK] KILL SWITCH TRIPPED: Position {self.pos:.6f} BTC exceeds max {self.config.max_position_btc} BTC")
+
+        return self._halted
 
     def on_book_update(self, book):
         if book.best_bid_price <= 0:
@@ -274,6 +340,49 @@ class StrategyEngine:
         elif self.pos < 0 and book.best_ask_price > 0:
             self._execute(book.best_ask_price, abs(self.pos), Side.BID)
             print(f"[RISK] EOD Flatten: BOUGHT {abs(self.pos):.6f} BTC at ${book.best_ask_price/1e8:.2f}")
+
+    def simulate_fill(self, side, price_int: int, qty_int: int, is_maker: bool = False):
+        """
+        Called by user_data_loop when a real Binance fill arrives via the
+        User Data Stream. Routes the actual execution data into the engine
+        PnL accounting, bypassing the engine's internal signal logic.
+
+        Args:
+            side      : Side.BID (buy fill) or Side.ASK (sell fill)
+            price_int : execution price in fixed-point (price * 1e8)
+            qty_int   : executed quantity in fixed-point (qty * 1e8)
+            is_maker  : True for maker fills (lower fee); False for taker
+        """
+        qty = qty_int / 1e8
+        fee_pct = self.config.maker_fee_pct if is_maker else 0.00015
+        fee = price_int / 1e8 * qty * abs(fee_pct)
+
+        if side == Side.BID:
+            # Buy fill
+            self._cash       -= fee
+            self._entry_price = price_int
+            self.pos         += qty
+        else:
+            # Sell fill — realize PnL if closing a long
+            if self.pos > 0:
+                pnl = self.pos * (price_int - self._entry_price) / 1e8 - fee
+                self._cash              += pnl
+                self._metrics.realized_pnl += pnl
+                self._metrics.total_pnl    += pnl
+                self.pos                -= qty
+                if self.pos <= 0:
+                    self._entry_price = 0
+            else:
+                self._cash -= fee
+                self.pos   -= qty
+                self._entry_price = price_int
+
+        self._equity = self._cash
+        if self._equity > self._peak_equity:
+            self._peak_equity = self._equity
+        print(f"[ENGINE] simulate_fill: {'BUY' if side==Side.BID else 'SELL'} "
+              f"{qty:.6f} @ ${price_int/1e8:.2f} | equity=${self._equity:.2f}")
+
 
     def _execute(self, price_int, qty, side):
         qty_signed = qty if side == Side.BID else -qty

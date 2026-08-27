@@ -180,6 +180,40 @@
         .val-up { color: var(--positive); text-shadow: 0 0 10px rgba(16, 185, 129, 0.3); }
         .val-down { color: var(--negative); text-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
         .val-neutral { color: var(--text-main); }
+
+        /* ── Kill-switch alert banner ─────────────────────────────── */
+        #kill-switch-banner {
+            display: none;
+            align-items: center;
+            gap: 12px;
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: var(--negative);
+            padding: 10px 2rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            animation: blink-border 1s ease infinite;
+        }
+        @keyframes blink-border {
+            0%, 100% { border-color: rgba(239, 68, 68, 0.4); }
+            50%       { border-color: rgba(239, 68, 68, 0.9); }
+        }
+
+        /* ── Latency gauge bars ──────────────────────────────────── */
+        .latency-bar-track {
+            background: rgba(255,255,255,0.05);
+            border-radius: 4px;
+            height: 6px;
+            width: 100%;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+        .latency-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.4s ease, background 0.4s ease;
+        }
     </style>
 </head>
 <body>
@@ -201,6 +235,16 @@
             </div>
         </div>
     </header>
+
+    <!-- Kill-switch alert banner (hidden by default, shown when halted) -->
+    <div id="kill-switch-banner">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        ⚠ KILL SWITCH ACTIVE — All new order submissions are BLOCKED
+    </div>
 
     <div class="dashboard-grid">
         <!-- Equity Panel -->
@@ -283,6 +327,48 @@
             <div class="panel-header">Equity Curve</div>
             <div class="chart-container">
                 <canvas id="equityChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Latency & Execution Panel -->
+        <div class="panel col-span-2">
+            <div class="panel-header">Execution Latency</div>
+            <div style="display: flex; flex-direction: column; gap: 1.2rem; margin-top: 0.5rem;">
+
+                <!-- Book → Engine -->
+                <div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                        <span style="font-size: 0.78rem; color: var(--text-muted);">Book → Engine (µs)</span>
+                        <span class="value-medium" id="lat-book" style="font-size: 0.95rem;">—</span>
+                    </div>
+                    <div class="latency-bar-track">
+                        <div class="latency-bar-fill" id="lat-book-bar" style="width:0%; background: var(--accent);"></div>
+                    </div>
+                </div>
+
+                <!-- Order Submit RTT -->
+                <div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                        <span style="font-size: 0.78rem; color: var(--text-muted);">Order Submit RTT (ms)</span>
+                        <span class="value-medium" id="lat-order" style="font-size: 0.95rem;">—</span>
+                    </div>
+                    <div class="latency-bar-track">
+                        <div class="latency-bar-fill" id="lat-order-bar" style="width:0%; background: var(--positive);"></div>
+                    </div>
+                </div>
+
+                <!-- Kill-switch indicator -->
+                <div class="metrics-row" style="margin-top: 0.4rem; padding-top: 0.8rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                    <span style="color: var(--text-muted); font-size: 0.78rem;">Engine Kill-Switch</span>
+                    <span id="ks-badge" style="
+                        font-size: 0.72rem; font-weight: 700; letter-spacing: 0.5px;
+                        padding: 3px 10px; border-radius: 12px;
+                        background: rgba(16, 185, 129, 0.12);
+                        color: var(--positive);
+                        border: 1px solid rgba(16,185,129,0.3);
+                        transition: all 0.3s ease;
+                    ">NORMAL</span>
+                </div>
             </div>
         </div>
         
@@ -541,8 +627,56 @@
                         qtyEl.innerText = "0.00 BTC";
                     }
                 }
+
+                // ── Latency panel ─────────────────────────────────────────
+                if (data.latency) {
+                    const bookUs  = data.latency.book_update_us  || 0;
+                    const orderMs = data.latency.order_submit_ms || 0;
+
+                    document.getElementById('lat-book').innerText  = bookUs  > 0 ? bookUs.toFixed(1)  + ' µs' : '—';
+                    document.getElementById('lat-order').innerText = orderMs > 0 ? orderMs.toFixed(1) + ' ms' : '—';
+
+                    // Book → Engine bar: green ≤100µs, yellow ≤500µs, red >500µs (cap at 1000µs = 100%)
+                    const bookPct = Math.min(bookUs / 1000 * 100, 100);
+                    const bookColor = bookUs <= 100 ? 'var(--positive)' : (bookUs <= 500 ? '#f59e0b' : 'var(--negative)');
+                    const bookBar = document.getElementById('lat-book-bar');
+                    bookBar.style.width  = bookPct + '%';
+                    bookBar.style.background = bookColor;
+
+                    // Order RTT bar: green ≤50ms, yellow ≤200ms, red >200ms (cap at 500ms = 100%)
+                    const orderPct = Math.min(orderMs / 500 * 100, 100);
+                    const orderColor = orderMs === 0 ? 'var(--accent)'
+                                     : orderMs <= 50  ? 'var(--positive)'
+                                     : orderMs <= 200 ? '#f59e0b'
+                                     : 'var(--negative)';
+                    const orderBar = document.getElementById('lat-order-bar');
+                    orderBar.style.width  = (orderMs > 0 ? orderPct : 0) + '%';
+                    orderBar.style.background = orderColor;
+                }
+
+                // ── Kill-switch banner & badge ────────────────────────────
+                // The telemetry payload carries pending_order.active; if it's
+                // false AND the ML bridge sets _halted, the server omits orders.
+                // We infer halt state from a dedicated field if present.
+                const halted = data.kill_switch_halted === true;
+                const banner = document.getElementById('kill-switch-banner');
+                const ksBadge = document.getElementById('ks-badge');
+                if (halted) {
+                    banner.style.display = 'flex';
+                    ksBadge.innerText = 'HALTED';
+                    ksBadge.style.background = 'rgba(239,68,68,0.15)';
+                    ksBadge.style.color = 'var(--negative)';
+                    ksBadge.style.borderColor = 'rgba(239,68,68,0.3)';
+                } else {
+                    banner.style.display = 'none';
+                    ksBadge.innerText = 'NORMAL';
+                    ksBadge.style.background = 'rgba(16,185,129,0.12)';
+                    ksBadge.style.color = 'var(--positive)';
+                    ksBadge.style.borderColor = 'rgba(16,185,129,0.3)';
+                }
             }
         }
+
 
         async function fetchTrades() {
             try {

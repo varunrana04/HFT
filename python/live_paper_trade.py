@@ -4,6 +4,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 import json
 import asyncio
+from datetime import datetime, timezone
 import time
 import csv
 import uvicorn
@@ -12,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import websockets
 import collections
-from statsmodels.tsa.stattools import adfuller
+# from statsmodels.tsa.stattools import adfuller
 import joblib
 import numpy as np
 import glob
@@ -21,6 +22,7 @@ import zipfile
 # ─── Load Engine ───────────────────────────────────────────────
 from engine_loader import load_engine
 hft_engine = load_engine()
+from binance_order_gateway import BinanceOrderGateway
 print("DEBUG: Loaded C++ engine successfully")
 # ─── Global State ──────────────────────────────────────────────
 # ─── Process Lock & Global State ───────────────────────────────
@@ -78,61 +80,148 @@ sentiment_model = None
 
 from contextlib import asynccontextmanager
 
+# ─── Latency Tracking (populated by websocket loop & execution loop) ───────
+gateway_latency_ns: float = 0.0        # nanoseconds: last book-update engine call
+execution_latency_ns: float = 0.0      # nanoseconds: last order-submit latency
+
 async def python_binance_ws():
-    print("[INFO] Starting pure Python WebSocket fallback...")
-    url = "wss://fstream.binance.com/stream?streams=btcusdt@trade/btcusdt@depth5@100ms"
-    
+    """Pure-Python WebSocket fallback with sequence-gap detection and exponential backoff."""
+    global gateway_latency_ns
+
+    ws_base = os.environ.get('BINANCE_WS_BASE_URL', 'wss://fstream.binance.com')
+    url = f"{ws_base}/stream?streams=btcusdt@trade/btcusdt@depth5@100ms"
+
+    # Sequence gap tracking (Binance Futures depth stream)
+    last_update_id: int = 0
+    backoff: float = 1.0
+
     while True:
         try:
             print(f"[PythonWs] Connecting to {url}...")
             async with websockets.connect(url, ping_interval=30, ping_timeout=10, max_size=None) as ws:
                 print("[PythonWs] Connected and subscribed.")
-                
+                backoff = 1.0  # reset on successful connect
+
                 async for msg in ws:
                     try:
                         data = json.loads(msg)
-                        if "data" in data:
-                            d = data["data"]
-                            stream = data.get("stream", "")
-                            
-                            if "@trade" in stream:
-                                trade = hft_engine.Trade()
-                                trade.timestamp_ns = int(d["T"]) * 1000000
-                                trade.price = int(float(d["p"]) * 1e8)
-                                trade.quantity = int(float(d["q"]) * 1e8)
-                                trade.side = hft_engine.Side.ASK if d["m"] else hft_engine.Side.BID
-                                engine.on_trade(trade, latest_book)
-                                
-                            elif "@depth5" in stream:
-                                latest_book.timestamp_ns = int(time.time() * 1e9)
-                                bids = d.get("b", [])
-                                asks = d.get("a", [])
-                                
-                                if bids:
-                                    latest_book.best_bid_price = int(float(bids[0][0]) * 1e8)
-                                    latest_book.best_bid_qty = int(float(bids[0][1]) * 1e8)
-                                    latest_book.bid_count = len(bids)
-                                if asks:
-                                    latest_book.best_ask_price = int(float(asks[0][0]) * 1e8)
-                                    latest_book.best_ask_qty = int(float(asks[0][1]) * 1e8)
-                                    latest_book.ask_count = len(asks)
-                                    
-                                if latest_book.is_valid():
-                                    engine.on_book_update(latest_book)
+                        if "data" not in data:
+                            continue
+
+                        d = data["data"]
+                        stream = data.get("stream", "")
+
+                        if "@trade" in stream:
+                            trade = hft_engine.Trade()
+                            trade.timestamp_ns = int(d["T"]) * 1_000_000
+                            trade.price = int(float(d["p"]) * 1e8)
+                            trade.quantity = int(float(d["q"]) * 1e8)
+                            trade.side = hft_engine.Side.ASK if d["m"] else hft_engine.Side.BID
+                            engine.on_trade(trade, latest_book)
+
+                        elif "@depth5" in stream:
+                            # ── Sequence gap detection ──────────────────────
+                            # Binance depth5 includes 'u' (final update ID) and
+                            # 'pu' (previous update ID). If pu != last_update_id,
+                            # our local book is stale — skip this tick and resync.
+                            u  = d.get("u", 0)   # final update ID
+                            pu = d.get("pu", 0)  # previous update ID
+
+                            if last_update_id != 0 and pu != last_update_id:
+                                print(
+                                    f"[PythonWs] Sequence gap detected: expected pu={last_update_id} "
+                                    f"got pu={pu}. Resetting local book and reconnecting..."
+                                )
+                                last_update_id = 0
+                                break  # force reconnect
+
+                            last_update_id = u
+                            # ── Book update ─────────────────────────────────
+                            latest_book.timestamp_ns = int(time.time() * 1e9)
+                            bids = d.get("b", [])
+                            asks = d.get("a", [])
+
+                            if bids:
+                                latest_book.best_bid_price = int(float(bids[0][0]) * 1e8)
+                                latest_book.best_bid_qty   = int(float(bids[0][1]) * 1e8)
+                                latest_book.bid_count      = len(bids)
+                            if asks:
+                                latest_book.best_ask_price = int(float(asks[0][0]) * 1e8)
+                                latest_book.best_ask_qty   = int(float(asks[0][1]) * 1e8)
+                                latest_book.ask_count      = len(asks)
+
+                            if latest_book.is_valid():
+                                _t0 = time.perf_counter_ns()
+                                engine.on_book_update(latest_book)
+                                gateway_latency_ns = time.perf_counter_ns() - _t0
+
                     except Exception as loop_err:
                         print(f"[PythonWs] Message loop error: {loop_err}")
+
         except asyncio.CancelledError:
             break
         except Exception as e:
-            print(f"[PythonWs] Disconnected: {e}. Reconnecting in 2s...")
-            await asyncio.sleep(2.0)
+            import math
+            jitter = 0.5 * backoff * (1 + (time.time() % 1))  # ~0-100% jitter
+            wait = backoff + jitter
+            print(f"[PythonWs] Disconnected: {e}. Reconnecting in {wait:.1f}s...")
+            await asyncio.sleep(wait)
+            backoff = min(backoff * 2, 60.0)  # cap at 60 seconds
 
 cpp_gateway = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global cpp_gateway
-    use_cpp = os.environ.get("USE_CPP_GATEWAY", "0") == "1"
+
+    symbol = os.environ.get("BINANCE_SYMBOL", "BTCUSDT").upper()
+    is_live = os.environ.get("BINANCE_MODE", "PAPER").upper() == "LIVE"
+
+    print(f"[INFO] Reconciling {symbol} position directly with Binance API...")
+    gateway = BinanceOrderGateway()
+    await gateway.connect()
+    
+    if not gateway.api_key or not gateway.api_secret:
+        if is_live:
+            print("[FATAL] Binance API keys missing in LIVE mode. Aborting boot.")
+            os._exit(1)
+        else:
+            print("[WARNING] Binance API keys missing in PAPER mode. Booting with flat position.")
+            
+    # Calculate UTC midnight timestamp for daily realized PnL
+    now = datetime.now(timezone.utc)
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    midnight_ms = int(midnight.timestamp() * 1000)
+
+    try:
+        pos_risk = await gateway.get_position_risk(symbol)
+        realized_pnl = await gateway.get_realized_pnl(symbol, midnight_ms)
+        
+        if pos_risk is not None:
+            binance_pos = float(pos_risk.get("positionAmt", 0.0))
+            binance_pnl = float(pos_risk.get("unRealizedProfit", 0.0))
+            binance_entry = float(pos_risk.get("entryPrice", 0.0))
+            
+            fixed_pos = int(binance_pos * 1e8)
+            
+            engine.set_position(fixed_pos)
+            engine.set_avg_entry_price(binance_entry)
+            engine.set_realized_pnl(realized_pnl)
+            
+            current_ts_ms = int(time.time() * 1000)
+            engine.update_kill_switch_state(current_ts_ms)
+            
+            print(f"[INFO] Position reconciled. True Pos: {binance_pos} {symbol}, Entry: ${binance_entry}, UnrlPnL: ${binance_pnl}, DailyRealPnL: ${realized_pnl}")
+        else:
+            print("[FATAL] Could not retrieve position risk from Binance. Aborting boot.")
+            os._exit(1)
+    except Exception as e:
+        print(f"[FATAL] Exception during position reconciliation: {e}")
+        os._exit(1)
+    finally:
+        await gateway.close()
+
+    use_cpp = os.environ.get("USE_CPP_GATEWAY", "1") == "1"
     
     if use_cpp:
         print("[INFO] Initializing C++ Exchange Gateway (IXWebSocket)...")
@@ -145,6 +234,12 @@ async def lifespan(app: FastAPI):
     # Start the background tasks
     asyncio.create_task(log_flusher_loop())
     asyncio.create_task(ml_bridge_loop())
+    asyncio.create_task(execution_loop())
+    asyncio.create_task(daily_reset_loop())
+    asyncio.create_task(funding_rate_loop())
+
+    # Start User Data Stream for live fill tracking (no-op in paper/no-key mode)
+    asyncio.create_task(user_data_loop(gateway))
     
     yield
     
@@ -261,22 +356,18 @@ engine.set_mode(hft_engine.EngineMode.BACKTEST)
 print("DEBUG: After StrategyEngine")
 # Load freshly trained Ridge directional weights from signal_weights.bin
 # Fall back to hand-validated weights if the file isn't present
-_weights_path = os.path.join(os.path.dirname(__file__), '..', 'models', 'signal_weights.bin')
+_weights_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'models', 'signal_weights.bin'))
 if os.path.exists(_weights_path):
     try:
-        import struct as _struct
-        with open(_weights_path, 'rb') as _f:
-            _raw = _f.read(6 * 8)
-        _loaded_weights = list(_struct.unpack('<6d', _raw))
-        engine.set_weights(_loaded_weights)
-        print(f"[INFO] Loaded Ridge weights from {_weights_path}: {[round(w,4) for w in _loaded_weights]}")
+        engine.load_model(_weights_path)
+        print(f"[INFO] Loaded ML Model from {_weights_path}")
     except Exception as _e:
         print(f"[WARNING] Could not load signal_weights.bin: {_e}")
-        optimal_weights = [0.189, 0.006, -0.242, -0.238, 0.101, 0.200]
+        optimal_weights = [0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         engine.set_weights(optimal_weights)
-        print(f"[INFO] Fallback weights: {optimal_weights}")
+        print(f"[INFO] Fallback weights (11 features): {optimal_weights}")
 else:
-    optimal_weights = [0.189, 0.006, -0.242, -0.238, 0.101, 0.200]
+    optimal_weights = [0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     engine.set_weights(optimal_weights)
     print(f"[INFO] No signal_weights.bin found. Using validated weights: {optimal_weights}")
 
@@ -294,6 +385,24 @@ price_history   = collections.deque(maxlen=5000)   # Extended: 5000 for reliable
 time_sampled_prices = collections.deque(maxlen=5000) # Time-sampled prices for volatility
 funding_rate    = 0.0   # BTC-PERP 8h funding rate (used as carry signal)
 mark_price      = 0.0   # Futures mark price
+
+# ─── Shared order state (execution_loop ↔ user_data_loop) ───────────────────
+# Both coroutines run concurrently in the same asyncio event loop.
+# user_data_loop clears order_id when a fill or cancel arrives from Binance;
+# execution_loop reads it before deciding whether to cancel a stale order.
+import dataclasses
+
+@dataclasses.dataclass
+class OrderState:
+    """Thread-safe (within asyncio) shared state for the currently live order."""
+    order_id: int = -1          # −1 means no live order
+    side: str = ""              # "BUY" or "SELL"
+    price: float = 0.0
+    qty: float = 0.0
+    submitted_at: float = 0.0   # time.monotonic() at submit
+    lock: asyncio.Lock = dataclasses.field(default_factory=asyncio.Lock)
+
+order_state = OrderState()
 
 # ─── Binance Futures WebSocket Consumer ────────────────────────
 # ─── Data Logger Loop (C++ Gateway handles network) ────────────
@@ -483,10 +592,9 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             fv = engine.last_features()
-            mid_price = (latest_book.best_bid_price + latest_book.best_ask_price) / 2 / 1e8
             equity = engine.equity()
-            
             pending = engine.pending_order()
+
             payload = {
                 "type": "update",
                 "timestamp": time.time(),
@@ -508,17 +616,245 @@ async def websocket_endpoint(websocket: WebSocket):
                     "price": pending.price / 1e8,
                     "qty": pending.qty / 1e8,
                     "queue_position": pending.queue_position / 1e8
-                }
+                },
+                # ─── Latency profiling (visible on dashboard) ─────────────
+                "latency": {
+                    "book_update_us": round(gateway_latency_ns / 1000.0, 2),
+                    "order_submit_ms": round(execution_latency_ns / 1_000_000.0, 2)
+                },
+                # ─── Kill-switch state ──────────────────────────────────────
+                # Reflects whether the C++ engine or ML bridge has halted trading.
+                "kill_switch_halted": (
+                    getattr(engine, '_halted', False) or
+                    bool(
+                        (lambda: (lambda ts: engine.is_trading_halted(ts) if callable(getattr(engine, 'is_trading_halted', None)) else False)(int(time.time()*1000)))()
+                    )
+                )
             }
             chart_history.append(payload)
             await websocket.send_json(payload)
-            await asyncio.sleep(0.1) # 10Hz
+            await asyncio.sleep(0.1)  # 10 Hz
     except (websockets.exceptions.ConnectionClosed, WebSocketDisconnect, RuntimeError):
         print("[INFO] Dashboard disconnected.")
     except Exception as e:
         import traceback
         traceback.print_exc()
         print(f"[ERROR] Telemetry loop exception: {e}")
+
+# ─── User Data Stream Loop (Live Fill Tracking) ────────────────
+async def user_data_loop(gateway: BinanceOrderGateway):
+    """
+    Connects to the Binance User Data Stream and processes execution reports.
+
+    On FILLED / PARTIALLY_FILLED:
+      - Syncs the real executed qty/price back to the C++ engine.
+      - Clears order_state.order_id so execution_loop knows the order is gone.
+
+    On CANCELED / EXPIRED:
+      - Clears order_state.order_id (no fill to record).
+
+    This is a no-op if API keys are not configured (paper mode).
+    """
+    if not gateway.api_key or not gateway.api_secret:
+        print("[INFO] User Data Stream skipped (no API keys — paper mode).")
+        return
+
+    listen_key = await gateway.create_listen_key()
+    if not listen_key:
+        print("[WARNING] Could not obtain User Data Stream listen key. Fill tracking disabled.")
+        return
+
+    print("[INFO] User Data Stream listening for ORDER_TRADE_UPDATE events...")
+
+    async for event in gateway.websocket_user_stream():
+        try:
+            event_type = event.get("e", "")
+
+            if event_type == "ORDER_TRADE_UPDATE":
+                o = event.get("o", {})
+                symbol      = o.get("s", "")
+                status      = o.get("X", "")    # FILLED, PARTIALLY_FILLED, CANCELED, EXPIRED
+                side_raw    = o.get("S", "")    # BUY / SELL
+                exec_qty    = float(o.get("l", 0.0))   # last-leg executed qty
+                exec_px     = float(o.get("L", 0.0))   # last-leg executed price
+                cum_qty     = float(o.get("z", 0.0))   # cumulative filled qty (P3-5)
+                order_id    = int(o.get("i", -1))
+                is_maker    = o.get("m", False)         # True = maker fill (lower fee)
+
+                if status in ("FILLED", "PARTIALLY_FILLED") and exec_qty > 0:
+                    fixed_qty = int(exec_qty * 1e8)
+                    is_buy    = side_raw == "BUY"
+                    side_enum = hft_engine.Side.BID if is_buy else hft_engine.Side.ASK
+
+                    print(
+                        f"[FILL] {status} orderId={order_id} {side_raw} "
+                        f"{exec_qty} @ {exec_px} (cum={cum_qty}, symbol={symbol}, "
+                        f"maker={'Y' if is_maker else 'N'})"
+                    )
+
+                    try:
+                        engine.simulate_fill(side_enum, int(exec_px * 1e8), fixed_qty, is_maker)
+                    except Exception as fill_err:
+                        print(f"[WARNING] engine.simulate_fill failed: {fill_err}")
+
+                    # ── Only clear order_state on full FILL; keep it alive on partial fills
+                    #    so TTL sweep and stale-cancel logic still operate correctly ──────
+                    if status == "FILLED":
+                        async with order_state.lock:
+                            if order_state.order_id == order_id:
+                                order_state.order_id     = -1
+                                order_state.submitted_at = 0.0
+                                print(f"[FILL] order_state cleared — order {order_id} fully filled (cum={cum_qty})")
+
+
+
+                elif status in ("CANCELED", "EXPIRED"):
+                    print(f"[FILL] Order {order_id} {status} — no fill.")
+                    async with order_state.lock:
+                        if order_state.order_id == order_id:
+                            order_state.order_id = -1
+
+            elif event_type == "ACCOUNT_UPDATE":
+                balances = event.get("a", {}).get("B", [])
+                for b in balances:
+                    if b.get("a") == "USDT":
+                        print(f"[ACCOUNT] USDT Balance: {b.get('wb', '?')} wallet / {b.get('cw', '?')} cross-margin")
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[ERROR] user_data_loop event processing error: {e}")
+
+
+# ─── Execution Loop ─────────────────────────────────────────────────────────
+async def execution_loop():
+    """
+    Polls the C++ engine for pending limit orders and routes them to Binance.
+
+    Safety gates (in order of precedence):
+      1. Kill-switch: engine.is_trading_halted() — hard-blocks all order submission.
+      2. Paper mode: no API keys → uses MOCK path (safe for local dev).
+      3. Stale-order cancel: if a new engine signal arrives while an old order
+         is still live (not yet filled/cancelled by the User Data Stream),
+         we cancel the stale order before placing the new one.
+
+    Shared state:
+      Uses the module-level `order_state` (OrderState) guarded by asyncio.Lock
+      so that user_data_loop can clear order_id on fills without races.
+    """
+    global execution_latency_ns
+
+    print("[INFO] Starting Execution Loop (Live Trading)...")
+    gateway = BinanceOrderGateway()
+    await gateway.connect()
+
+    last_executed_ts: int = 0
+    SYMBOL           = os.environ.get("BINANCE_SYMBOL", "BTCUSDT").upper()
+    STALE_ORDER_TTL_S = int(os.environ.get("STALE_ORDER_TTL_MS", "5000")) / 1000.0
+
+    while True:
+        try:
+            # ── 1. Kill-switch gate ──────────────────────────────────────────
+            current_ts_ms = int(time.time() * 1000)
+            try:
+                halted = engine.is_trading_halted(current_ts_ms)
+            except Exception:
+                halted = False
+
+            if halted:
+                async with order_state.lock:
+                    if order_state.order_id != -1:
+                        oid = order_state.order_id
+                        print(f"[EXECUTION] Kill switch ACTIVE — cancelling live order {oid}")
+                        try:
+                            await gateway.cancel_order(SYMBOL, oid)
+                        except Exception as ce:
+                            print(f"[EXECUTION] Cancel failed: {ce}")
+                        order_state.order_id = -1
+                await asyncio.sleep(0.1)
+                continue
+            # ── 2. TTL-based stale-order sweep (ζ STALE_ORDER_TTL_MS) ─────────────
+            # Cancel the live order even if no new signal has arrived,
+            # if it has been sitting in the book longer than the TTL.
+            # This prevents stale limit orders from being hit by adverse flow.
+            async with order_state.lock:
+                ttl_oid       = order_state.order_id
+                ttl_submitted = order_state.submitted_at
+
+            if ttl_oid != -1 and ttl_submitted > 0:
+                age_s = time.monotonic() - ttl_submitted
+                if age_s > STALE_ORDER_TTL_S:
+                    print(
+                        f"[EXECUTION] TTL expired ({age_s:.1f}s > {STALE_ORDER_TTL_S:.1f}s) "
+                        f"— cancelling stale order {ttl_oid}"
+                    )
+                    try:
+                        await gateway.cancel_order(SYMBOL, ttl_oid)
+                    except Exception as ce:
+                        print(f"[EXECUTION] TTL cancel failed: {ce}")
+                    async with order_state.lock:
+                        if order_state.order_id == ttl_oid:
+                            order_state.order_id     = -1
+                            order_state.submitted_at = 0.0
+
+            # ── 3. Check for new signal ──────────────────────────────────────
+            pending = engine.pending_order()
+
+            if pending.active and pending.timestamp_ns > last_executed_ts:
+                last_executed_ts = pending.timestamp_ns
+
+                side_str = "BUY" if pending.side == hft_engine.Side.BID else "SELL"
+                price    = pending.price / 1e8
+                qty      = pending.qty   / 1e8
+
+                # ── 3. Stale-order cancel ────────────────────────────────────
+                async with order_state.lock:
+                    stale_id = order_state.order_id
+
+                if stale_id != -1:
+                    print(f"[EXECUTION] New signal — cancelling stale order {stale_id}")
+                    try:
+                        await gateway.cancel_order(SYMBOL, stale_id)
+                    except Exception as ce:
+                        print(f"[EXECUTION] Stale cancel failed (may already be filled): {ce}")
+                    async with order_state.lock:
+                        if order_state.order_id == stale_id:
+                            order_state.order_id = -1
+
+                print(f"[EXECUTION] Firing Limit Order: {side_str} {qty} @ {price}")
+
+                _t0 = time.perf_counter_ns()
+                res = await gateway.place_limit_order(SYMBOL, side_str, qty, price)
+                execution_latency_ns = time.perf_counter_ns() - _t0
+
+                new_id = res.get("orderId", -1)
+                async with order_state.lock:
+                    order_state.order_id     = new_id
+                    order_state.side         = side_str
+                    order_state.price        = price
+                    order_state.qty          = qty
+                    order_state.submitted_at = time.monotonic()
+
+                print(f"[EXECUTION] Gateway Response: {res}")
+
+        except asyncio.CancelledError:
+            # Graceful shutdown — cancel any live order first
+            async with order_state.lock:
+                shutdown_id = order_state.order_id
+            if shutdown_id != -1:
+                try:
+                    await gateway.cancel_order(SYMBOL, shutdown_id)
+                    print(f"[EXECUTION] Shutdown cancel: order {shutdown_id}")
+                except Exception:
+                    pass
+            break
+        except Exception as e:
+            print(f"[ERROR] Execution loop exception: {e}")
+
+        await asyncio.sleep(0.01)  # 10 ms polling
+
+    await gateway.close()
+
 
 # ─── ML Bridge Loop ────────────────────────────────────────────
 async def ml_bridge_loop():
@@ -542,26 +878,26 @@ async def ml_bridge_loop():
             mid_price = (latest_book.best_bid_price + latest_book.best_ask_price) / 2.0 / 1e8
             time_sampled_prices.append(mid_price)
 
-        # 1. ADF Test for StatArb (needs >= 60 prices for quick demo; 5000 buffer for full power)
-        if len(time_sampled_prices) >= 60:
-            try:
-                prices = np.array(time_sampled_prices)
-                res = await loop.run_in_executor(None, adfuller, prices)
-                p_value = res[1]
-                adf_stat = res[0]
-
-                if p_value > 0.05:
-                    engine.set_stat_arb_valid(False)
-                    print(f"[ML BRIDGE] ADF stat={adf_stat:.3f} p={p_value:.4f} > 0.05 — NOT stationary. StatArb DISABLED.")
-                else:
-                    engine.set_stat_arb_valid(True)
-                    print(f"[ML BRIDGE] ADF stat={adf_stat:.3f} p={p_value:.4f} <= 0.05 — STATIONARY. StatArb ENABLED.")
-            except asyncio.CancelledError:
-                break
-            except Exception:
-                pass
-        else:
-            print(f"[ML BRIDGE] Buffering prices... ({len(time_sampled_prices)}/5000 for ADF)")
+        # 1. ADF Test for StatArb (disabled for performance)
+        # if len(time_sampled_prices) >= 60:
+        #     try:
+        #         prices = np.array(time_sampled_prices)
+        #         res = await loop.run_in_executor(None, adfuller, prices)
+        #         p_value = res[1]
+        #         adf_stat = res[0]
+        # 
+        #         if p_value > 0.05:
+        #             engine.set_stat_arb_valid(False)
+        #             print(f"[ML BRIDGE] ADF stat={adf_stat:.3f} p={p_value:.4f} > 0.05 — NOT stationary. StatArb DISABLED.")
+        #         else:
+        #             engine.set_stat_arb_valid(True)
+        #             print(f"[ML BRIDGE] ADF stat={adf_stat:.3f} p={p_value:.4f} <= 0.05 — STATIONARY. StatArb ENABLED.")
+        #     except asyncio.CancelledError:
+        #         break
+        #     except Exception:
+        #         pass
+        # else:
+        #     print(f"[ML BRIDGE] Buffering prices... ({len(time_sampled_prices)}/5000 for ADF)")
                 
         # 2. Regime Prediction + write realized_vol to engine
         fv = engine.last_features()
@@ -612,11 +948,69 @@ async def ml_bridge_loop():
                 pass
 
 
-# ─── Startup ───────────────────────────────────────────────────
-# Moved lifespan definition upwards
+# ─── Daily Reset Loop ──────────────────────────────────────────
+async def daily_reset_loop():
+    print("[INFO] Starting Daily Reset Loop (UTC Midnight Rollover)")
 
-# Removed extra app definition
-# Removed redundant paper_trade_loop
+    current_day = datetime.now(timezone.utc).day
+
+    while True:
+        await asyncio.sleep(60.0)  # Check every minute
+        now_utc = datetime.now(timezone.utc)
+
+        if now_utc.day != current_day:
+            print(f"[INFO] UTC Midnight Reached. Rolling over from day {current_day} to {now_utc.day}")
+            current_day = now_utc.day
+
+            # Reset engine metrics and rebase drawdown limit
+            try:
+                engine.new_trading_day()
+            except AttributeError:
+                pass  # If engine doesn't have it (though both now do)
+
+            print("[INFO] Daily reset complete.")
+
+
+# ─── Funding Rate & Mark Price Loop ─────────────────────────────
+async def funding_rate_loop():
+    """
+    Polls Binance /fapi/v1/premiumIndex every 30 seconds to keep the global
+    `funding_rate` and `mark_price` variables current.
+
+    These values are:
+      - Sent to the dashboard via the /ws/telemetry payload.
+      - Available as a carry signal for the ML bridge regime logic.
+
+    Falls back gracefully when API keys are absent (paper mode) or the
+    network is unavailable.
+    """
+    global funding_rate, mark_price
+
+    SYMBOL  = os.environ.get("BINANCE_SYMBOL", "BTCUSDT").upper()
+    WS_BASE = os.environ.get("BINANCE_BASE_URL", "https://fapi.binance.com")
+    url     = f"{WS_BASE}/fapi/v1/premiumIndex?symbol={SYMBOL}"
+    POLL_S  = 30.0  # Binance updates funding rate info every ~5 s; 30 s is plenty
+
+    print(f"[INFO] Starting Funding Rate Loop for {SYMBOL} (polling every {POLL_S:.0f}s)")
+
+    import aiohttp as _aiohttp
+    async with _aiohttp.ClientSession() as session:
+        while True:
+            try:
+                async with session.get(url, timeout=_aiohttp.ClientTimeout(total=5)) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        mark_price   = float(data.get("markPrice",   mark_price))
+                        funding_rate = float(data.get("lastFundingRate", funding_rate))
+                    else:
+                        print(f"[FUNDING] HTTP {resp.status} from premiumIndex — keeping last values")
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"[FUNDING] Poll error: {e} — keeping last values")
+
+            await asyncio.sleep(POLL_S)
+
 
 if __name__ == "__main__":
     print("=====================================================")
