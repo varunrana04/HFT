@@ -305,6 +305,10 @@ if db_url:
             row = cur.fetchone()
             if row:
                 loaded_capital, loaded_position, loaded_realized_pnl = row
+                # Sanity-clamp: reject obviously corrupt PnL (> initial capital in magnitude)
+                if abs(loaded_realized_pnl) > loaded_capital * 0.9:
+                    print(f"[WARNING] DB PnL {loaded_realized_pnl:.2f} looks corrupted (>90% of capital). Resetting to 0.")
+                    loaded_realized_pnl = 0.0
                 print(f"[INFO] Loaded DB state: Capital={loaded_capital}, Pos={loaded_position/1e8}, PnL={loaded_realized_pnl}")
             else:
                 print(f"[INFO] No existing DB state found. Using defaults.")
@@ -485,11 +489,11 @@ from fastapi.responses import FileResponse
 from fastapi.background import BackgroundTasks
 import shutil
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def get_dashboard():
     return FileResponse(os.path.join(os.path.dirname(__file__), "..", "dashboard", "standalone.html"))
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check():
     return {"status": "ok", "timestamp": time.time(), "is_trading": PaperState.is_trading}
 
@@ -909,21 +913,19 @@ async def ml_bridge_loop():
             realized_vol_raw = float(np.std(log_rets) * np.sqrt(len(log_rets) * 100)) # scale up slightly so it isn't tiny
 
         if regime_model and 'model' in regime_model:
+            # Wait until we have enough price history for a meaningful prediction
+            if len(time_sampled_prices) < 30:
+                continue
             try:
                 model = regime_model['model']
                 mean  = regime_model['mean']
                 std   = regime_model['std']
 
                 X_curr   = np.array([[fv.realized_vol, fv.spread_bps]])
-                X_scaled = (X_curr - mean) / std
+                X_scaled = (X_curr - mean) / (std + 1e-10)
                 state_arr = await loop.run_in_executor(None, model.predict, X_scaled)
                 state = int(state_arr[0])
 
-                # Regime-aware directional bias:
-                # State 0 = low-vol trend  -> allow long + short
-                # State 1 = high-vol chaos -> tighten thresholds (handled by spread_alpha_multiplier)
-                # State 2 = mean-revert    -> boost short_multiplier aggressiveness
-                # State 3 = crisis         -> halt all new entries
                 if state == 3:
                     if not getattr(engine, '_halted', False):
                         print(f"[ML BRIDGE] Regime State 3 (CRISIS) detected. Blocking new entries.")
@@ -936,7 +938,7 @@ async def ml_bridge_loop():
                     current_loss = engine.config.initial_capital - engine.equity()
                     if getattr(engine, '_halted', False) and current_loss < daily_limit * 0.5:
                         try:
-                            engine._halted = False  # Reopen if regime recovers and loss is small
+                            engine._halted = False
                         except AttributeError:
                             pass
 
