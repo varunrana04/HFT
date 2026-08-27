@@ -306,8 +306,8 @@ if db_url:
             if row:
                 loaded_capital, loaded_position, loaded_realized_pnl = row
                 # Sanity-clamp: reject obviously corrupt PnL (> initial capital in magnitude)
-                if abs(loaded_realized_pnl) > loaded_capital * 0.9:
-                    print(f"[WARNING] DB PnL {loaded_realized_pnl:.2f} looks corrupted (>90% of capital). Resetting to 0.")
+                if abs(loaded_realized_pnl) > loaded_capital * 0.1:
+                    print(f"[WARNING] DB PnL {loaded_realized_pnl:.2f} looks corrupted (>10% of capital). Resetting to 0.")
                     loaded_realized_pnl = 0.0
                 print(f"[INFO] Loaded DB state: Capital={loaded_capital}, Pos={loaded_position/1e8}, PnL={loaded_realized_pnl}")
             else:
@@ -447,6 +447,8 @@ async def log_flusher_loop():
                     fv = engine.last_features()
                     
                     # Save to DB
+                    rec_pnl      = getattr(rec, 'pnl',      getattr(rec, 'total_pnl', 0.0))
+                    rec_slippage = getattr(rec, 'slippage',  0.0)
                     if db_conn:
                         try:
                             with db_conn.cursor() as cur:
@@ -458,7 +460,7 @@ async def log_flusher_loop():
                                 """, (
                                     PaperState.run_id, rec.timestamp_ns, side_str,
                                     rec.entry_price/1e8, rec.exit_price/1e8, abs(rec.quantity)/1e8,
-                                    rec.pnl, rec.slippage, fv.combined_alpha, fv.realized_vol, fv.vpin,
+                                    rec_pnl, rec_slippage, fv.combined_alpha, fv.realized_vol, fv.vpin,
                                     fv.ofi, fv.obi, fv.spread_bps, fv.cvd, fv.hawkes_intensity, int(fv.regime)
                                 ))
                         except Exception as e:
@@ -470,8 +472,8 @@ async def log_flusher_loop():
                         writer.writerow([
                             PaperState.run_id, rec.timestamp_ns, side_str,
                             rec.entry_price/1e8, rec.exit_price/1e8,
-                            abs(rec.quantity)/1e8, rec.pnl, rec.slippage,
-                            fv.combined_alpha, fv.realized_vol, fv.vpin, fv.ofi, fv.obi, 
+                            abs(rec.quantity)/1e8, rec_pnl, rec_slippage,
+                            fv.combined_alpha, fv.realized_vol, fv.vpin, fv.ofi, fv.obi,
                             fv.spread_bps, fv.cvd, fv.hawkes_intensity, int(fv.regime)
                         ])
                 PaperState.journal_idx = len(journal)
@@ -618,7 +620,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     "side": "BID" if pending.side == hft_engine.Side.BID else ("ASK" if pending.side == hft_engine.Side.ASK else "NONE"),
                     "price": pending.price / 1e8,
                     "qty": pending.qty / 1e8,
-                    "queue_position": pending.queue_position / 1e8
+                    "queue_position": getattr(pending, 'queue_position', 0) / 1e8
                 },
                 # ─── Latency profiling (visible on dashboard) ─────────────
                 "latency": {
