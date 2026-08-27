@@ -221,30 +221,29 @@ async def lifespan(app: FastAPI):
     finally:
         await gateway.close()
 
-    use_cpp = os.environ.get("USE_CPP_GATEWAY", "1") == "1"
-    
-    if use_cpp:
+    use_cpp = os.environ.get("USE_CPP_GATEWAY", "0") == "1"
+    cpp_gateway = None
+
+    if use_cpp and hasattr(hft_engine, "BinanceWs"):
         print("[INFO] Initializing C++ Exchange Gateway (IXWebSocket)...")
         cpp_gateway = hft_engine.BinanceWs("btcusdt")
         cpp_gateway.start_live_feed(engine)
     else:
-        print("[INFO] C++ Gateway disabled via env var. Using Python fallback.")
+        print("[INFO] Using Python WebSocket gateway.")
         asyncio.create_task(python_binance_ws())
-    
-    # Start the background tasks
+
     asyncio.create_task(log_flusher_loop())
     asyncio.create_task(ml_bridge_loop())
     asyncio.create_task(execution_loop())
     asyncio.create_task(daily_reset_loop())
     asyncio.create_task(funding_rate_loop())
-
-    # Start User Data Stream for live fill tracking (no-op in paper/no-key mode)
     asyncio.create_task(user_data_loop(gateway))
-    
+
     yield
-    
+
     if cpp_gateway:
         cpp_gateway.stop()
+
 
 app = FastAPI(title="HFT Quant Cockpit API", lifespan=lifespan)
 app.add_middleware(
