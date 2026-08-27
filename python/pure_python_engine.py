@@ -50,15 +50,17 @@ class Trade:
 
 class FeatureVector:
     def __init__(self):
-        self.timestamp_ns   = 0
-        self.vpin           = 0.5
-        self.microprice     = 0.0
-        self.spread_bps     = 2.0
-        self.realized_vol   = 0.01
-        self.ofi            = 0.0
-        self.obi            = 0.0
-        self.combined_alpha = 0.0
-        self.regime         = 0
+        self.timestamp_ns      = 0
+        self.vpin              = 0.5
+        self.microprice        = 0.0
+        self.spread_bps        = 2.0
+        self.realized_vol      = 0.01
+        self.ofi               = 0.0
+        self.obi               = 0.0
+        self.combined_alpha    = 0.0
+        self.regime            = 0
+        self.cvd               = 0.0
+        self.hawkes_intensity  = 0.0
 
 class PerformanceMetrics:
     def __init__(self):
@@ -76,6 +78,8 @@ class TradeRecord:
         self.entry_price  = 0
         self.exit_price   = 0
         self.quantity     = 0.0
+        self.pnl          = 0.0
+        self.slippage     = 0.0
 
 
 WEIGHT_NAMES = ["w_obi","w_vpin","w_vol","w_spread","w_ofi","w_microprice","w_bias"]
