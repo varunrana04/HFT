@@ -133,6 +133,9 @@ class StrategyEngine:
         self._HAWKES_DECAY   = 0.5   # decay rate λ (per second)
         self._HAWKES_MU      = 0.02  # base intensity per trade
         self._last_hawkes_ns = 0
+        # OFI (Order Flow Imbalance) — delta of top-of-book qty between snapshots
+        self._prev_bid_qty   = 0
+        self._prev_ask_qty   = 0
         
     def pending_order(self):
         class DummyOrder:
@@ -245,6 +248,13 @@ class StrategyEngine:
         total_q = bid_q + ask_q
         if total_q > 0:
             self._last_features.obi = (bid_q - ask_q) / total_q
+            # OFI: (Δbid_qty - Δask_qty) / total_qty
+            # Positive = more aggressive buying; Negative = more aggressive selling
+            d_bid = bid_q - self._prev_bid_qty
+            d_ask = ask_q - self._prev_ask_qty
+            self._last_features.ofi = (d_bid - d_ask) / (total_q + 1e-8)
+            self._prev_bid_qty = bid_q
+            self._prev_ask_qty = ask_q
             mp = (book.best_bid_price * ask_q + book.best_ask_price * bid_q) / total_q
             mp_btc = mp / 1e8
             if self._prev_micro > 0:
