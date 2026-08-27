@@ -1,4 +1,5 @@
 import time
+import math
 import struct
 from enum import Enum
 
@@ -120,7 +121,15 @@ class StrategyEngine:
         self._vpin_buyvol    = 0.0
         self._vpin_window    = []
         self._VPIN_BUCKET    = 50.0
-        self._last_trade_ns  = 0
+        self._last_trade_ns   = 0
+        # CVD (Cumulative Volume Delta)
+        self._cvd_buffer     = []
+        self._CVD_WINDOW     = 200
+        # Hawkes intensity (self-exciting point process)
+        self._hawkes_intensity = 0.0
+        self._HAWKES_DECAY   = 0.5   # decay rate λ (per second)
+        self._HAWKES_MU      = 0.02  # base intensity per trade
+        self._last_hawkes_ns = 0
         
     def pending_order(self):
         class DummyOrder:
@@ -243,6 +252,29 @@ class StrategyEngine:
 
     def on_trade(self, trade, book):
         self._ticks += 1
+
+        # ── CVD + Hawkes (track ALL market trades, including warmup) ──────────
+        vol_btc = abs(getattr(trade, 'qty', getattr(trade, 'quantity', 0))) / 1e8
+        # ASK side = aggressive buyer = positive CVD; BID side = aggressive seller = negative
+        cvd_sign = +1.0 if trade.side == Side.ASK else -1.0
+        self._cvd_buffer.append(cvd_sign * vol_btc)
+        if len(self._cvd_buffer) > self._CVD_WINDOW:
+            self._cvd_buffer.pop(0)
+        self._last_features.cvd = sum(self._cvd_buffer)
+
+        now_ns = int(time.time() * 1e9)
+        if self._last_hawkes_ns > 0:
+            dt_s = max((now_ns - self._last_hawkes_ns) / 1e9, 0.0)
+            self._hawkes_intensity = (
+                self._hawkes_intensity * math.exp(-self._HAWKES_DECAY * dt_s)
+                + self._HAWKES_MU
+            )
+        else:
+            self._hawkes_intensity = self._HAWKES_MU
+        self._last_hawkes_ns = now_ns
+        self._last_features.hawkes_intensity = min(self._hawkes_intensity, 10.0)
+        # ─────────────────────────────────────────────────────────────────────
+
         if self._ticks < self.config.min_warmup_ticks:
             return
         if self._halted:

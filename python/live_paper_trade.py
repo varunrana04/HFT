@@ -74,9 +74,14 @@ def compress_old_logs(current_run_id):
 
 compress_old_logs(PaperState.run_id)
 
-print("DEBUG: Before FastAPI")
-# Global variable for sentiment model
+# Global variable for sentiment model (legacy stub)
 sentiment_model = None
+# Global sentiment score [-1, +1] — updated by sentiment_loop every 5 min
+sentiment_score: float = 0.0
+# Global RL position multiplier [0.5, 1.5] — updated by ml_bridge_loop
+rl_position_mult: float = 1.0
+# Base order size from config (captured at boot; RL scales around this)
+_base_order_size_btc: float = 1.0
 
 from contextlib import asynccontextmanager
 
@@ -89,7 +94,7 @@ async def python_binance_ws():
     global gateway_latency_ns
 
     ws_base = os.environ.get('BINANCE_WS_BASE_URL', 'wss://fstream.binance.com')
-    url = f"{ws_base}/stream?streams=btcusdt@trade/btcusdt@depth5@100ms"
+    url = f"{ws_base}/stream?streams=btcusdt@trade/btcusdt@depth20@100ms"
 
     # Sequence gap tracking (Binance Futures depth stream)
     last_update_id: int = 0
@@ -115,28 +120,23 @@ async def python_binance_ws():
                             trade = hft_engine.Trade()
                             trade.timestamp_ns = int(d["T"]) * 1_000_000
                             trade.price = int(float(d["p"]) * 1e8)
-                            trade.quantity = int(float(d["q"]) * 1e8)
-                            trade.side = hft_engine.Side.ASK if d["m"] else hft_engine.Side.BID
+                            trade.qty   = int(float(d["q"]) * 1e8)  # must be .qty not .quantity
+                            trade.side  = hft_engine.Side.ASK if d["m"] else hft_engine.Side.BID
                             engine.on_trade(trade, latest_book)
 
-                        elif "@depth5" in stream:
-                            # ── Sequence gap detection ──────────────────────
-                            # Binance depth5 includes 'u' (final update ID) and
-                            # 'pu' (previous update ID). If pu != last_update_id,
-                            # our local book is stale — skip this tick and resync.
-                            u  = d.get("u", 0)   # final update ID
-                            pu = d.get("pu", 0)  # previous update ID
+                        elif "@depth20" in stream:
+                            u  = d.get("u", 0)
+                            pu = d.get("pu", 0)
 
                             if last_update_id != 0 and pu != last_update_id:
                                 print(
-                                    f"[PythonWs] Sequence gap detected: expected pu={last_update_id} "
-                                    f"got pu={pu}. Resetting local book and reconnecting..."
+                                    f"[PythonWs] Sequence gap: expected pu={last_update_id} "
+                                    f"got pu={pu}. Reconnecting..."
                                 )
                                 last_update_id = 0
-                                break  # force reconnect
+                                break
 
                             last_update_id = u
-                            # ── Book update ─────────────────────────────────
                             latest_book.timestamp_ns = int(time.time() * 1e9)
                             bids = d.get("b", [])
                             asks = d.get("a", [])
@@ -151,9 +151,24 @@ async def python_binance_ws():
                                 latest_book.ask_count      = len(asks)
 
                             if latest_book.is_valid():
+                                # Weighted OBI from full 20-level ladder
+                                # Weight = 1/(level+1) so top of book has most influence
+                                bid_wvol = sum(
+                                    float(b[1]) / (i + 1)
+                                    for i, b in enumerate(bids[:20]) if float(b[1]) > 0
+                                )
+                                ask_wvol = sum(
+                                    float(a[1]) / (i + 1)
+                                    for i, a in enumerate(asks[:20]) if float(a[1]) > 0
+                                )
+                                ladder_obi = (bid_wvol - ask_wvol) / (bid_wvol + ask_wvol + 1e-8)
+
                                 _t0 = time.perf_counter_ns()
                                 engine.on_book_update(latest_book)
                                 gateway_latency_ns = time.perf_counter_ns() - _t0
+
+                                # Override single-level OBI with full-ladder OBI
+                                engine._last_features.obi = ladder_obi
 
                     except Exception as loop_err:
                         print(f"[PythonWs] Message loop error: {loop_err}")
@@ -238,6 +253,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(daily_reset_loop())
     asyncio.create_task(funding_rate_loop())
     asyncio.create_task(user_data_loop(gateway))
+    asyncio.create_task(sentiment_loop())
 
     yield
 
@@ -608,6 +624,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 "book_imbalance": fv.obi,
                 "volatility": fv.realized_vol,
                 "regime": int(fv.regime),
+                "cvd": fv.cvd,
+                "hawkes": fv.hawkes_intensity,
+                "sentiment": sentiment_score,
+                "rl_mult": rl_position_mult,
                 "best_bid": latest_book.best_bid_price / 1e8,
                 "best_ask": latest_book.best_ask_price / 1e8,
                 "equity": equity,
@@ -863,6 +883,7 @@ async def execution_loop():
 
 # ─── ML Bridge Loop ────────────────────────────────────────────
 async def ml_bridge_loop():
+    global rl_position_mult, _base_order_size_btc
     print("[INFO] Starting ML Bridge Loop (ADF & True HMM)")
     model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'models', 'hmm_regime.pkl'))
     regime_model = None
@@ -873,43 +894,56 @@ async def ml_bridge_loop():
     except Exception as e:
         print(f"[WARNING] Could not load regime model: {e}")
 
+    # ── Online RL Policy ──────────────────────────────────────────────────
+    try:
+        from online_rl import OnlineRLPolicy
+        rl_save = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'models', 'online_policy.npz'))
+        rl_policy = OnlineRLPolicy(save_path=rl_save)
+        _base_order_size_btc = engine.config.order_size_btc
+        print("[INFO] Online RL Policy loaded.")
+    except Exception as e:
+        rl_policy = None
+        print(f"[WARNING] Online RL not available: {e}")
+    # ──────────────────────────────────────────────────────
+
     loop = asyncio.get_running_loop()
+    prev_journal_len = 0
 
     while True:
         await asyncio.sleep(1.0)
-        
-        # Capture time-sampled price for volatility and ADF
+
+        # Capture time-sampled price for volatility
         if latest_book.best_bid_price > 0:
             mid_price = (latest_book.best_bid_price + latest_book.best_ask_price) / 2.0 / 1e8
             time_sampled_prices.append(mid_price)
 
-        # 1. ADF Test for StatArb (disabled for performance)
-        # if len(time_sampled_prices) >= 60:
-        #     try:
-        #         prices = np.array(time_sampled_prices)
-        #         res = await loop.run_in_executor(None, adfuller, prices)
-        #         p_value = res[1]
-        #         adf_stat = res[0]
-        # 
-        #         if p_value > 0.05:
-        #             engine.set_stat_arb_valid(False)
-        #             print(f"[ML BRIDGE] ADF stat={adf_stat:.3f} p={p_value:.4f} > 0.05 — NOT stationary. StatArb DISABLED.")
-        #         else:
-        #             engine.set_stat_arb_valid(True)
-        #             print(f"[ML BRIDGE] ADF stat={adf_stat:.3f} p={p_value:.4f} <= 0.05 — STATIONARY. StatArb ENABLED.")
-        #     except asyncio.CancelledError:
-        #         break
-        #     except Exception:
-        #         pass
-        # else:
-        #     print(f"[ML BRIDGE] Buffering prices... ({len(time_sampled_prices)}/5000 for ADF)")
-                
-        # Compute realized volatility from buffered prices (C++ floor=0.01 never updates in fallback)
+        # Compute realized volatility from buffered prices
         realized_vol_raw = 0.01
         if len(time_sampled_prices) >= 30:
             prices_arr = np.array(list(time_sampled_prices)[-30:])
             log_rets   = np.diff(np.log(prices_arr + 1e-10))
             realized_vol_raw = max(float(np.std(log_rets) * np.sqrt(len(log_rets) * 100)), 0.001)
+
+        fv = engine.last_features()
+
+        # ── Online RL: adapt position size from realized PnL feedback ─────────
+        if rl_policy is not None:
+            try:
+                obs = rl_policy.obs_from_features(fv, realized_vol_raw, sentiment_score)
+                mult = rl_policy.act(obs)
+                rl_position_mult = mult
+                engine.config.order_size_btc = _base_order_size_btc * mult
+
+                # Update RL on every newly closed trade
+                journal = engine.trade_journal()
+                if len(journal) > prev_journal_len:
+                    for rec in journal[prev_journal_len:]:
+                        rec_pnl = getattr(rec, 'pnl', 0.0)
+                        rl_policy.update(rec_pnl)
+                    prev_journal_len = len(journal)
+            except Exception:
+                pass
+        # ──────────────────────────────────────────────────────
 
         if regime_model and 'model' in regime_model:
             if len(time_sampled_prices) < 30:
@@ -919,12 +953,10 @@ async def ml_bridge_loop():
                 mean  = regime_model['mean']
                 std   = regime_model['std']
 
-                # Use locally computed vol — fv.realized_vol stays at 0.01 floor in pure-Python fallback
                 X_curr   = np.array([[realized_vol_raw, fv.spread_bps]])
                 X_scaled = (X_curr - mean) / (std + 1e-10)
                 state_arr = await loop.run_in_executor(None, model.predict, X_scaled)
                 state = int(state_arr[0])
-
 
                 if state == 3:
                     if not getattr(engine, '_halted', False):
@@ -942,11 +974,45 @@ async def ml_bridge_loop():
                         except AttributeError:
                             pass
 
-                print(f"[ML BRIDGE] HMM State {state} | Vol: {realized_vol_raw:.4f} | Alpha: {fv.combined_alpha:.4f} | VPIN: {fv.vpin:.3f}")
+                print(f"[ML BRIDGE] HMM State {state} | Vol: {realized_vol_raw:.4f} | Alpha: {fv.combined_alpha:.4f} | VPIN: {fv.vpin:.3f} | RLmult: {rl_position_mult:.2f}")
             except asyncio.CancelledError:
                 break
             except Exception:
                 pass
+
+
+# ─── Sentiment Loop (VADER + CryptoCompare, no API key) ────────────────
+async def sentiment_loop():
+    """Poll CryptoCompare crypto news every 5 min. Score with VADER. Update global sentiment_score."""
+    global sentiment_score
+    try:
+        from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+        analyzer = SentimentIntensityAnalyzer()
+        print("[SENTIMENT] VADER sentiment loop started.")
+    except ImportError:
+        print("[SENTIMENT] vaderSentiment not installed — skipping sentiment loop.")
+        return
+
+    CC_URL = "https://min-api.cryptocompare.com/data/v2/news/?lang=EN&categories=BTC&limit=10"
+    while True:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(CC_URL, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        articles = data.get("Data", [])[:10]
+                        scores = []
+                        for art in articles:
+                            text = art.get("title", "") + " " + art.get("body", "")[:200]
+                            scores.append(analyzer.polarity_scores(text)["compound"])
+                        if scores:
+                            sentiment_score = float(np.mean(scores))
+                            print(f"[SENTIMENT] Score: {sentiment_score:+.3f} ({len(scores)} headlines)")
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            pass
+        await asyncio.sleep(300)  # poll every 5 minutes
 
 
 # ─── Daily Reset Loop ──────────────────────────────────────────
