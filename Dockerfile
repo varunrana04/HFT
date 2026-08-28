@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     ca-certificates \
     git \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -17,6 +18,11 @@ WORKDIR /app
 # Copy the CMake project files
 COPY CMakeLists.txt .
 COPY cpp/ cpp/
+
+# Download simdjson single-header
+RUN mkdir -p /usr/local/include/simdjson && \
+    wget -O /usr/local/include/simdjson/simdjson.h https://raw.githubusercontent.com/simdjson/simdjson/master/singleheader/simdjson.h && \
+    wget -O /usr/local/include/simdjson/simdjson.cpp https://raw.githubusercontent.com/simdjson/simdjson/master/singleheader/simdjson.cpp
 
 # Build the C++ engine
 RUN mkdir build && cd build && cmake .. && make -j$(nproc) hft_engine_live
