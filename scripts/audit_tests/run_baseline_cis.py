@@ -57,9 +57,19 @@ def load_paper_trade_sessions(root: str, min_rows: int = 50) -> dict:
     for f in files:
         try:
             df = pd.read_csv(f)
-            if "Equity" not in df.columns or len(df) < min_rows:
+            if "Equity" not in df.columns:
+                if "PnL" in df.columns:
+                    df["Equity"] = 100000.0 + df["PnL"].cumsum()
+                else:
+                    continue
+            if len(df) < min_rows:
                 continue
-            df = df.sort_values("Timestamp").reset_index(drop=True)
+            
+            if "Timestamp" in df.columns:
+                df = df.sort_values("Timestamp").reset_index(drop=True)
+            elif "TimestampNs" in df.columns:
+                df = df.sort_values("TimestampNs").reset_index(drop=True)
+                
             run_id = os.path.basename(f).replace("paper_trades_", "").replace(".csv", "")
             sessions[run_id] = df
             print(f"  Loaded session {run_id}: {len(df)} fills, "

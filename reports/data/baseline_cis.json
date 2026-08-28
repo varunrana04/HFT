@@ -1,29 +1,21 @@
 {
   "sessions": [
     {
-      "run_id": "2204319d",
-      "n_fills": 29360,
-      "net_pnl": -205.07000000029802,
-      "win_rate": 0.18031949317074833,
-      "max_dd": 4.080017024691534e-05,
-      "sharpe": -0.932134756434177
-    },
-    {
-      "run_id": "eb835e92",
-      "n_fills": 1261,
-      "net_pnl": 66.66000000014901,
-      "win_rate": 0.4380952380952381,
-      "max_dd": 1.7097734267058724e-05,
-      "sharpe": 0.03445065832581758
+      "run_id": "28c66535",
+      "n_fills": 299,
+      "net_pnl": -70.23390149464831,
+      "win_rate": 0.0,
+      "max_dd": 0.000702339014946483,
+      "sharpe": -1.0269157776770246
     }
   ],
-  "total_fills": 30621,
-  "total_pnl": -138.410000000149,
-  "avg_win_rate": 0.3092073656329932,
-  "avg_max_dd": 2.8948952256987034e-05,
-  "profit_factor": 0.9948515826705828,
-  "bootstrap_sharpe_mean": -0.021121073903085843,
-  "bootstrap_sharpe_ci_low": -0.5407195310208361,
-  "bootstrap_sharpe_ci_high": 0.5105887931707765,
-  "verdict": "[WARN] STRADDLES ZERO -- More data needed for conclusive proof."
+  "total_fills": 299,
+  "total_pnl": -70.23390149464831,
+  "avg_win_rate": 0.0,
+  "avg_max_dd": 0.000702339014946483,
+  "profit_factor": 0.0,
+  "bootstrap_sharpe_mean": -7.031709896239249,
+  "bootstrap_sharpe_ci_low": -10.092916887830532,
+  "bootstrap_sharpe_ci_high": -5.8025885318565935,
+  "verdict": "[FAIL] NEGATIVE -- 95% CI entirely below zero. Strategy is losing."
 }

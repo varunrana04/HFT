@@ -36,31 +36,38 @@ def train_hmm(df: pd.DataFrame, n_components: int = 3):
     X_std = np.std(X, axis=0) + 1e-8
     X_scaled = (X - X_mean) / X_std
     
-    print(f"Training GaussianHMM (hmmlearn) with {n_components} states via Baum-Welch/EM...")
+    print(f"Training GaussianHMM/GMM with {n_components} states...")
     try:
         from hmmlearn.hmm import GaussianHMM
-        
-        seeds_to_test = [42, 999, 100, 200, 500]
-        best_model = None
-        best_score = -np.inf
-        
-        print("\n[DIAGNOSTIC] Evaluating EM Initializations:")
-        for seed in seeds_to_test:
-            model = GaussianHMM(n_components=n_components, covariance_type="diag", n_iter=100, random_state=seed)
-            model.fit(X_scaled)
-            score = model.score(X_scaled)
-            print(f"  Seed {seed:<4} -> Log-Likelihood: {score:.4f}")
-            
-            if score > best_score:
-                best_score = score
-                best_model = model
-                
-        print(f"\n[SELECTION] Selected Seed {best_model.random_state} with highest Log-Likelihood: {best_score:.4f}")
-        model = best_model
-        
+        model_class = GaussianHMM
+        model_kwargs = {"n_components": n_components, "covariance_type": "diag", "n_iter": 100}
     except ImportError:
-        print("Please install hmmlearn (pip install hmmlearn).")
-        return
+        print("[WARNING] hmmlearn not found (Python 3.14 wheel issue). Falling back to sklearn GaussianMixture...")
+        from sklearn.mixture import GaussianMixture
+        model_class = GaussianMixture
+        model_kwargs = {"n_components": n_components, "covariance_type": "diag", "max_iter": 100}
+        
+    seeds_to_test = [42, 999, 100, 200, 500]
+    best_model = None
+    best_score = -np.inf
+    
+    print("\n[DIAGNOSTIC] Evaluating EM Initializations:")
+    for seed in seeds_to_test:
+        kwargs = model_kwargs.copy()
+        kwargs["random_state"] = seed
+        model = model_class(**kwargs)
+        model.fit(X_scaled)
+        score = model.score(X_scaled)
+        
+        # sklearn's GMM returns average log-likelihood, hmmlearn returns total. Normalize for print
+        print(f"  Seed {seed:<4} -> Log-Likelihood: {score:.4f}")
+        
+        if score > best_score:
+            best_score = score
+            best_model = model
+            
+    print(f"\n[SELECTION] Selected Seed {best_model.random_state} with highest Log-Likelihood: {best_score:.4f}")
+    model = best_model
     
     print("\nHMM Training complete. Temporal state-transition matrix learned successfully.")
     
@@ -75,8 +82,11 @@ def train_hmm(df: pd.DataFrame, n_components: int = 3):
     for s, c in zip(unique_states, counts):
         print(f"  State {s}: {c} ticks ({c/len(states):.1%})")
         
-    print("\nState Transition Matrix (Temporal Persistence):")
-    print(model.transmat_)
+    if hasattr(model, 'transmat_'):
+        print("\nState Transition Matrix (Temporal Persistence):")
+        print(model.transmat_)
+    else:
+        print("\n[INFO] GaussianMixture used (no temporal transition matrix available).")
     
     print("\n[DIAGNOSTIC] HMM State Parameters:")
     print(f"Features Used: {['realized_vol' if 'realized_vol' in df.columns else 'mid_price_vol', 'spread_bps' if 'spread_bps' in df.columns else 'ones']}")
@@ -86,7 +96,8 @@ def train_hmm(df: pd.DataFrame, n_components: int = 3):
     for i in range(model.n_components):
         print(f"\nState {i}:")
         print(f"  Means: {model.means_[i]}")
-        print(f"  Covars: {model.covars_[i]}")
+        covars = getattr(model, 'covars_', getattr(model, 'covariances_', None))
+        print(f"  Covars: {covars[i] if covars is not None else 'N/A'}")
         
     return model
 

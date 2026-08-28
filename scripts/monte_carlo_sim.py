@@ -27,7 +27,12 @@ for CSV in files:
     try:
         df = pd.read_csv(CSV)
         df.columns = [c.strip().lower() for c in df.columns]
-        if 'equity' not in df.columns or len(df) < 50: continue
+        if 'equity' not in df.columns:
+            if 'pnl' in df.columns:
+                df['equity'] = 100000.0 + df['pnl'].cumsum()
+            else:
+                continue
+        if len(df) < 50: continue
         df['equity'] = pd.to_numeric(df['equity'], errors='coerce')
         df = df.dropna(subset=['equity']).reset_index(drop=True)
         if not found_data:

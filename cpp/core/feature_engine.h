@@ -127,6 +127,40 @@ struct Lag1 {
     void reset() noexcept { prev = 0.0; has_prev = false; }
 };
 
+// ─── Welford's Online Normalizer ─────────────────────────────
+struct WelfordNormalizer {
+    double mean = 0.0;
+    double m2 = 0.0;
+    int32_t count = 0;
+
+    double update_and_normalize(double x, int32_t min_obs, double clamp_sd) noexcept {
+        count++;
+        double delta = x - mean;
+        mean += delta / count;
+        double delta2 = x - mean;
+        m2 += delta * delta2;
+
+        if (count < min_obs) return x; // Not enough data, return raw
+
+        double variance = m2 / count; // population variance
+        if (variance < 1e-12) return 0.0; // avoid division by zero
+        
+        double sd = std::sqrt(variance);
+        double z = (x - mean) / sd;
+        
+        // Clamp to avoid extreme outliers blowing up the linear combination
+        if (z > clamp_sd) return clamp_sd;
+        if (z < -clamp_sd) return -clamp_sd;
+        return z;
+    }
+
+    void reset() noexcept {
+        mean = 0.0;
+        m2 = 0.0;
+        count = 0;
+    }
+};
+
 // ─── Feature Engine ──────────────────────────────────────────
 /**
  * @brief Computes all 6 alpha signals from book and trade data.
@@ -205,8 +239,11 @@ private:
     double statarb_sum_ = 0.0;
     double statarb_sum_sq_ = 0.0;
 
-    // ── Online Normalizers (Removed for ONNX/TransLOB tensor construction) ──
-
+    // ── Online Normalizers ───────────────────────────────────
+    WelfordNormalizer norm_microprice_;
+    WelfordNormalizer norm_ofi_;
+    WelfordNormalizer norm_spread_;
+    WelfordNormalizer norm_vol_;
     // ── Hawkes Process State ─────────────────────────────────
     HawkesProcess hawkes_;
 

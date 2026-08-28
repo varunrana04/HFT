@@ -76,6 +76,10 @@ void FeatureEngine::reset() noexcept {
     statarb_sum_sq_ = 0.0;
 
     hawkes_.reset();
+    norm_microprice_.reset();
+    norm_ofi_.reset();
+    norm_spread_.reset();
+    norm_vol_.reset();
 
     recent_buy_vol_  = 0.0;
     recent_sell_vol_ = 0.0;
@@ -134,38 +138,7 @@ FeatureVector FeatureEngine::compute_all(const BookSnapshot& book,
     // 7. OBI (Order Book Imbalance) - naturally [-1, 1]
     fv.obi = compute_obi(book);
     
-    // ── ONNX TENSOR CONSTRUCTION (TransLOB/Kronos Format) ──
-    // Format: (P_ask, V_ask, P_bid, V_bid) * 10 levels
-    // Prices are normalized by dividing by mid_price.
-    // Volumes are normalized by dividing by 10-level sum.
-    
-    double total_vol = 0.0;
-    for (int i = 0; i < 10; ++i) {
-        if (i < book.ask_count) total_vol += fixed_to_qty(book.asks[i].quantity);
-        if (i < book.bid_count) total_vol += fixed_to_qty(book.bids[i].quantity);
-    }
-    if (total_vol <= 0.0) total_vol = 1.0;
-    
-    for (int i = 0; i < 10; ++i) {
-        int idx = i * 4;
-        // Ask Price & Volume
-        if (i < book.ask_count) {
-            fv.lob_tensor[idx]     = static_cast<float>(fixed_to_price(book.asks[i].price) / mid_price_f);
-            fv.lob_tensor[idx + 1] = static_cast<float>(fixed_to_qty(book.asks[i].quantity) / total_vol);
-        } else {
-            fv.lob_tensor[idx]     = 1.0f; // Padding
-            fv.lob_tensor[idx + 1] = 0.0f;
-        }
-        
-        // Bid Price & Volume
-        if (i < book.bid_count) {
-            fv.lob_tensor[idx + 2] = static_cast<float>(fixed_to_price(book.bids[i].price) / mid_price_f);
-            fv.lob_tensor[idx + 3] = static_cast<float>(fixed_to_qty(book.bids[i].quantity) / total_vol);
-        } else {
-            fv.lob_tensor[idx + 2] = 1.0f; // Padding
-            fv.lob_tensor[idx + 3] = 0.0f;
-        }
-    }
+
 
     // 8. Trade Imbalance (EMA of buy vs sell volume)
     double trade_qty = fixed_to_qty(trade.quantity);
@@ -194,6 +167,17 @@ FeatureVector FeatureEngine::compute_all(const BookSnapshot& book,
     // physical thresholds (e.g. spread_bps > 50) remain meaningful.
     fv.regime = classify_regime(fv.vpin, fv.spread_bps,
                                 fv.realized_vol, raw_ofi, fv.hurst_exponent);
+
+    // ── Online Normalization ─────────────────────────────────
+    // Signals 1, 2, 4, 5 need Z-score normalization. 
+    // VPIN (3) is already [0,1], Stat-Arb (6) is already a Z-score.
+    int32_t min_obs = config_.normalizer_min_obs;
+    double clamp    = config_.normalizer_clamp;
+
+    fv.microprice   = norm_microprice_.update_and_normalize(fv.microprice, min_obs, clamp);
+    fv.ofi          = norm_ofi_.update_and_normalize(fv.ofi, min_obs, clamp);
+    fv.spread_bps   = norm_spread_.update_and_normalize(fv.spread_bps, min_obs, clamp);
+    fv.realized_vol = norm_vol_.update_and_normalize(fv.realized_vol, min_obs, clamp);
 
     return fv;
 }

@@ -37,12 +37,12 @@
 #include "strategy_engine.h"      // StrategyEngine, StrategyConfig, EngineMode
 #include "signal_combiner.h"      // CombinerMode
 #include "feature_engine.h"             // FeatureConfig, simd_dot_product_avx2
-#include "risk_manager.h"         // RiskConfig, RiskStats
 #include "types.h"                // All POD types
 #include "gateway/binance_ws.h"   // BinanceWs
 
 namespace py = pybind11;
 using namespace hft;
+using namespace hft::core;
 using namespace hft::gateway;
 
 PYBIND11_MODULE(hft_engine, m) {
@@ -93,11 +93,11 @@ PYBIND11_MODULE(hft_engine, m) {
         py::buffer_info buf_f = features.request();
         py::buffer_info buf_w = weights.request();
         
-        if (buf_f.ndim != 2 || buf_f.shape[1] != 6) {
-            throw std::runtime_error("features must be an Nx6 2D array");
+        if (buf_f.ndim != 2 || buf_f.shape[1] != 11) {
+            throw std::runtime_error("features must be an Nx11 2D array");
         }
-        if (buf_w.ndim != 1 || buf_w.shape[0] != 6) {
-            throw std::runtime_error("weights must be a 1D array of size 6");
+        if (buf_w.ndim != 1 || buf_w.shape[0] != 11) {
+            throw std::runtime_error("weights must be a 1D array of size 11");
         }
         
         size_t N = buf_f.shape[0];
@@ -111,12 +111,12 @@ PYBIND11_MODULE(hft_engine, m) {
         
         #pragma GCC ivdep
         for (size_t i = 0; i < N; ++i) {
-            ptr_a[i] = simd_dot_product_avx2(ptr_f + i * 6, ptr_w, 6);
+            ptr_a[i] = simd_dot_product_avx2(ptr_f + i * 11, ptr_w, 11);
         }
         
         return alphas;
     }, py::arg("features"), py::arg("weights"),
-    "Process an Nx6 array of features and 6 weights into N combined alphas using AVX2.");
+    "Process an Nx11 array of features and 11 weights into N combined alphas using AVX2.");
 
     // ─── Enums ────────────────────────────────────────────────────────────
 
@@ -171,11 +171,10 @@ PYBIND11_MODULE(hft_engine, m) {
     py::enum_<CombinerMode>(m, "CombinerMode",
             "Signal combiner operating mode.")
         .value("WEIGHTED_AVG", CombinerMode::WEIGHTED_AVG,
-               "Uniform or custom-weighted average of 6 base signals.")
+               "Uniform or custom-weighted average of 11 base signals.")
         .value("ML_MODEL",     CombinerMode::ML_MODEL,
-               "6-weight binary model from train_model.py::export_binary_weights().")
-        .value("ONNX_MODEL",   CombinerMode::ONNX_MODEL,
-               "Full LightGBM ONNX graph via onnxruntime (requires HFT_ONNX_SUPPORT).")
+               "11-weight + bias binary model from train_model.py::export_binary_weights().")
+
         .export_values();
 
     // ─── Config Structs ───────────────────────────────────────────────────
@@ -238,19 +237,6 @@ PYBIND11_MODULE(hft_engine, m) {
         .def_readwrite("normalizer_clamp",      &FeatureConfig::normalizer_clamp,
                        "Clamp bound in standard deviations after Z-normalization (default 3.0).");
 
-    py::class_<RiskConfig>(m, "RiskConfig",
-            "Pre-trade risk limits. All 5 checks are O(1) and noexcept.")
-        .def(py::init<>())
-        .def_readwrite("max_position_pct",           &RiskConfig::max_position_pct,
-                       "Max absolute position in fixed-point qty.")
-        .def_readwrite("max_drawdown_pct",            &RiskConfig::max_drawdown_pct,
-                       "Max peak-to-trough drawdown fraction (default 0.05).")
-        .def_readwrite("max_single_order_pct",        &RiskConfig::max_single_order_pct,
-                       "Max single order as fraction of portfolio (default 0.05).")
-        .def_readwrite("max_daily_loss_pct",          &RiskConfig::max_daily_loss_pct,
-                       "Max cumulative daily loss fraction (default 0.03).")
-        .def_readwrite("circuit_breaker_cooldown_ns", &RiskConfig::circuit_breaker_cooldown_ns,
-                       "Cooldown after risk breach in nanoseconds (default 60s).");
 
     // ─── Core Market-Data Structs ─────────────────────────────────────────
 
@@ -375,18 +361,6 @@ PYBIND11_MODULE(hft_engine, m) {
         .def_readonly("risk_rejections",   &PerformanceMetrics::risk_rejections)
         .def_readonly("signals_generated", &PerformanceMetrics::signals_generated);
 
-    py::class_<RiskStats>(m, "RiskStats",
-            "Counters for risk-based order rejections.")
-        .def_readonly("orders_checked",        &RiskStats::orders_checked)
-        .def_readonly("orders_passed",         &RiskStats::orders_passed)
-        .def_readonly("rejected_position",     &RiskStats::rejected_position)
-        .def_readonly("rejected_drawdown",     &RiskStats::rejected_drawdown)
-        .def_readonly("rejected_daily_loss",   &RiskStats::rejected_daily_loss)
-        .def_readonly("rejected_order_size",   &RiskStats::rejected_order_size)
-        .def_readonly("rejected_circuit_brk",  &RiskStats::rejected_circuit_brk)
-        .def_readonly("circuit_breaker_trips", &RiskStats::circuit_breaker_trips)
-        .def("pass_rate", &RiskStats::pass_rate,
-             "Fraction of orders that passed all risk checks [0.0, 1.0].");
 
     py::class_<TradeRecord>(m, "TradeRecord",
             "A single trade entry in the strategy journal.")
@@ -426,10 +400,9 @@ PYBIND11_MODULE(hft_engine, m) {
             # in your async WebSocket callback:
             engine.on_trade(trade, book)
     )doc")
-        .def(py::init<const StrategyConfig&, const FeatureConfig&, const RiskConfig&>(),
+        .def(py::init<const StrategyConfig&, const FeatureConfig&>(),
              py::arg("strategy_cfg") = StrategyConfig(),
-             py::arg("feature_cfg")  = FeatureConfig(),
-             py::arg("risk_cfg")     = RiskConfig())
+             py::arg("feature_cfg")  = FeatureConfig())
         // Event handlers
         .def("on_trade",        &StrategyEngine::on_trade,
              py::arg("trade"), py::arg("book"),
@@ -450,6 +423,8 @@ PYBIND11_MODULE(hft_engine, m) {
              py::arg("pnl"), "Set realized PnL manually.")
         .def("set_avg_entry_price", &StrategyEngine::set_avg_entry_price,
              py::arg("px"), "Set average entry price manually.")
+        .def("update_kill_switch_state", &StrategyEngine::update_kill_switch_state,
+             py::arg("timestamp_ms"), "Force sync the kill switch state with the engine's current position/PnL.")
         .def("trade_journal",   &StrategyEngine::trade_journal,
              py::return_value_policy::reference_internal)
         .def("clear_journal",   &StrategyEngine::clear_journal)
@@ -461,8 +436,7 @@ PYBIND11_MODULE(hft_engine, m) {
              "Get the active open limit order currently waiting in the queue.")
         .def("metrics",         &StrategyEngine::metrics,
              "PerformanceMetrics snapshot (Sharpe, win-rate, drawdown, etc.).")
-        .def("risk_stats",      &StrategyEngine::risk_stats,
-             "RiskStats — rejection counters for all 5 risk gates.")
+
 
         .def("is_warmed_up",    &StrategyEngine::is_warmed_up,
              "Returns True once min_warmup_ticks have been processed. "
@@ -490,7 +464,7 @@ PYBIND11_MODULE(hft_engine, m) {
              },
              py::arg("path"),
              R"doc(
-             Load 6-weight binary ML model (ML_MODEL mode).
+             Load 11-weight + bias binary ML model (ML_MODEL mode).
 
              File: signal_weights.bin from train_model.py::export_binary_weights().
              Automatically switches combiner to CombinerMode.ML_MODEL.
@@ -505,48 +479,22 @@ PYBIND11_MODULE(hft_engine, m) {
                  return self.load_optimal_weights(path.c_str());
              },
              py::arg("path"),
-             "Load 6 weights from a binary file into the internal weights_ array, and switch to WEIGHTED_AVG mode.")
+             "Load 11 weights from a binary file into the internal weights_ array, and switch to WEIGHTED_AVG mode.")
         .def("set_stat_arb_valid",
              &StrategyEngine::set_stat_arb_valid,
              py::arg("valid"),
              "Enable or disable the StatArb signal contribution dynamically.")
-        .def("load_onnx_model",
-             [](StrategyEngine& self, const std::string& path, int64_t n_features) {
-                 return self.load_onnx_model(path.c_str(), n_features);
-             },
-             py::arg("path"), py::arg("n_features") = 6LL,
-             R"doc(
-             Load a full LightGBM ONNX model for production inference.
-
-             File: lgb_model.onnx from train_model.py::export_onnx().
-             Automatically switches combiner to CombinerMode.ONNX_MODEL.
-             Requires the engine to be built with -DHFT_ONNX_SUPPORT=ON.
-
-             n_features must match the number of input features the ONNX
-             model was exported with (see models/training_report.md).
-
-             Returns True on success, False if ONNX support not compiled in
-             or if the model file is invalid.
-
-             Example:
-                 engine.load_onnx_model("models/lgb_model.onnx", n_features=52)
-             )doc")
         .def("set_combiner_mode",
              &StrategyEngine::set_combiner_mode,
              py::arg("mode"),
-             "Switch CombinerMode directly. Use after load_model() or load_onnx_model().")
+             "Switch CombinerMode directly. Use after load_model().")
         .def("combiner_mode",
              &StrategyEngine::combiner_mode,
              "Get current CombinerMode (WEIGHTED_AVG, ML_MODEL, or ONNX_MODEL).")
         .def("has_model",
              &StrategyEngine::has_model,
-             "Returns True if a binary ML model has been successfully loaded.")
-        .def("has_onnx",
-             &StrategyEngine::has_onnx,
-             "Returns True if an ONNX model has been loaded and verified.")
-        .def("onnx_n_features",
-             &StrategyEngine::onnx_n_features,
-             "Number of input features expected by the loaded ONNX model (6 if none).");
+             "Returns True if a binary ML model has been successfully loaded.");
+
 
     // ─── Binance WebSocket Gateway ───────────────────────────────────────
     py::class_<BinanceWs>(m, "BinanceWs",

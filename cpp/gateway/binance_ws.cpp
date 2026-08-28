@@ -57,6 +57,8 @@ void BinanceWs::start_live_feed(hft::StrategyEngine* engine) {
     ix::SocketTLSOptions tlsOptions;
     impl_->webSocket.setTLSOptions(tlsOptions);
     impl_->webSocket.setPingInterval(30);
+    impl_->webSocket.enableAutomaticReconnection();
+    impl_->webSocket.setMaxWaitBetweenReconnectionRetries(5000); // 5 seconds max wait
     impl_->webSocket.disablePerMessageDeflate();
     
     // Add standard headers to prevent Cloudflare/Binance from dropping the connection
@@ -174,10 +176,17 @@ void BinanceWs::start_live_feed(hft::StrategyEngine* engine) {
             impl_->webSocket.send(payload);
         }
         else if (msg->type == ix::WebSocketMessageType::Close) {
-            std::cout << "[BinanceWs] Disconnected from Binance!" << std::endl;
+            std::cout << "[BinanceWs] Disconnected from Binance! Code: " << msg->closeInfo.code << ", Reason: " << msg->closeInfo.reason << ". Auto-reconnecting..." << std::endl;
         }
         else if (msg->type == ix::WebSocketMessageType::Error) {
-            std::cout << "[BinanceWs] Connection Error: " << msg->errorInfo.reason << std::endl;
+            std::cout << "[BinanceWs] Connection Error: " << msg->errorInfo.reason << ". Retries: " << msg->errorInfo.retries << std::endl;
+        }
+        else if (msg->type == ix::WebSocketMessageType::Ping) {
+            // ixwebsocket replies to ping automatically, but we can log it for keep-alive verification
+            // std::cout << "[BinanceWs] Ping received." << std::endl;
+        }
+        else if (msg->type == ix::WebSocketMessageType::Pong) {
+            // std::cout << "[BinanceWs] Pong received." << std::endl;
         }
     });
 

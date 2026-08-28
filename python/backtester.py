@@ -29,7 +29,7 @@ def generate_synthetic_data(n):
     })
     return df
 
-def run_backtest(data_path=None):
+def run_backtest(data_path=None, dump_features=False):
     print("=====================================================")
     print(" HFT Engine - C++ Deterministic Backtester")
     print("=====================================================")
@@ -49,12 +49,20 @@ def run_backtest(data_path=None):
     engine = hft_engine.StrategyEngine(config)
     engine.set_mode(hft_engine.EngineMode.BACKTEST)
     
-    optimal_weights = [0.189, 0.006, -0.242, -0.238, 0.101, 0.200]
-    engine.set_weights(optimal_weights)
+    # Load the trained ML model weights
+    model_path = os.path.join(os.path.dirname(__file__), "models", "signal_weights.bin")
+    if os.path.exists(model_path):
+        engine.load_model(model_path)
+        print(f"[INFO] Successfully loaded 11-feature model: {model_path}")
+    else:
+        print(f"[WARNING] Model file not found at {model_path}. Using uniform weights.")
+        engine.set_weights([1.0/11.0] * 11)
     
     book = hft_engine.BookSnapshot()
     
     start_time = time.time()
+    
+    features_list = []
     
     # Pre-extract arrays for speed
     best_bid_arr = df["best_bid"].values
@@ -84,7 +92,31 @@ def run_backtest(data_path=None):
         
         engine.on_trade(trade, book)
         
+        if dump_features:
+            fv = engine.last_features()
+            features_list.append({
+                "timestamp_ns": fv.timestamp_ns,
+                "microprice": fv.microprice,
+                "ofi": fv.ofi,
+                "vpin": fv.vpin,
+                "spread_bps": fv.spread_bps,
+                "realized_vol": fv.realized_vol,
+                "stat_arb_zscore": fv.stat_arb_zscore,
+                "obi": fv.obi,
+                "trade_imbalance": fv.trade_imbalance,
+                "hawkes_intensity": fv.hawkes_intensity,
+                "cvd": fv.cvd,
+                "hurst_exponent": fv.hurst_exponent,
+                "mid_price": (best_bid_arr[i] + best_ask_arr[i]) / 2.0,
+            })
+            
     elapsed = time.time() - start_time
+    
+    if dump_features:
+        out_df = pd.DataFrame(features_list)
+        out_path = os.path.join(os.path.dirname(__file__), "..", "data", "features_dump_11.csv")
+        out_df.to_csv(out_path, index=False)
+        print(f"[INFO] Dumped {len(out_df)} features to {out_path}")
     
     metrics = engine.metrics()
     
@@ -124,6 +156,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", type=str, default=None, help="Path to historical tick CSV data")
+    parser.add_argument("--dump_features", action="store_true", help="Dump 11 features to data/features_dump_11.csv")
     args = parser.parse_args()
     
-    run_backtest(args.data)
+    run_backtest(args.data, dump_features=args.dump_features)

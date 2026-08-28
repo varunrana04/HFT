@@ -238,10 +238,7 @@ struct alignas(CACHE_LINE_SIZE) FeatureVector {
     double  stat_arb_zscore;     ///< Z-score of spread (pairs trading)
     double  vrp;                 ///< Volatility Risk Premium
     
-    // ── ONNX Deep Learning Tensor ──
-    // 40-element array representing 10 levels of Bid/Ask Price/Qty
-    // (P_ask, V_ask, P_bid, V_bid) * 10 levels
-    float   lob_tensor[40];
+
 
     // ── Engineered Features ──
     double  obi;                 ///< Order Book Imbalance

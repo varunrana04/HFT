@@ -197,34 +197,7 @@ TEST(StrategyEngine, EquityFlatIsCapital) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// Test 7: Risk rejection is counted
-// ═══════════════════════════════════════════════════════════
-TEST(StrategyEngine, RiskRejectionCounted) {
-    // Use extremely tight risk to trigger rejections
-    hft::StrategyConfig scfg;
-    scfg.initial_capital = 100.0;  // Very small capital
-    scfg.alpha_entry_threshold = 0.0001; // Very sensitive
-    scfg.max_position_pct = 0.5; // Very large order size
-
-    hft::RiskConfig rcfg;
-    rcfg.max_position_pct = 0.001; // Tiny position limit
-
-    hft::StrategyEngine engine(scfg, {}, rcfg);
-
-    // Feed enough ticks to generate signals and hit limits
-    for (int i = 0; i < 50; ++i) {
-        double p = 100.0 + i * 0.01;
-        auto book  = make_book(p, 10.0, p + 0.02, 10.0, 1000 + i, i);
-        auto trade = make_trade(p + 0.01, 1.0, hft::Side::BID, 1000 + i, i);
-        engine.on_trade(trade, book);
-    }
-
-    // After hitting position limit, risk rejections should accumulate
-    // We just verify the counter is accessible and non-negative
-    ASSERT_GE(engine.metrics().risk_rejections, static_cast<int64_t>(0));
-    return true;
-}
-
+// (Test 7 removed - RiskManager replaced by KillSwitch)
 // ═══════════════════════════════════════════════════════════
 // Test 8: Metrics update consistently
 // ═══════════════════════════════════════════════════════════
@@ -252,24 +225,7 @@ TEST(StrategyEngine, MetricsConsistency) {
     return true;
 }
 
-// ═══════════════════════════════════════════════════════════
-// Test 9: New trading day resets daily loss
-// ═══════════════════════════════════════════════════════════
-TEST(StrategyEngine, NewTradingDayResets) {
-    hft::StrategyEngine engine;
-
-    // Simulate some activity
-    auto book  = make_book(100.0, 10.0, 100.02, 10.0);
-    auto trade = make_trade(100.01, 1.0, hft::Side::BID);
-    engine.on_trade(trade, book);
-
-    // Reset daily stats
-    engine.new_trading_day();
-
-    // Risk manager daily loss should be reset
-    ASSERT_NEAR(engine.risk_stats().pass_rate(), 1.0, 1e-5);
-    return true;
-}
+// (Test 9 removed - RiskManager replaced by KillSwitch)
 
 // ═══════════════════════════════════════════════════════════
 // Test 10: Mode switching

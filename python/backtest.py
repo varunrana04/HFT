@@ -455,7 +455,9 @@ class CppBacktestEngine:
 from collections import namedtuple
 _FVSnapshot = namedtuple('_FVSnapshot', [
     'microprice', 'ofi', 'vpin', 'spread_bps',
-    'realized_vol', 'stat_arb_zscore', 'combined_alpha', 'regime',
+    'realized_vol', 'stat_arb_zscore', 'obi', 'trade_imbalance',
+    'hawkes_intensity', 'cvd', 'hurst_exponent',
+    'combined_alpha', 'regime',
 ])
 
 # ─── Feature Dumper ──────────────────────────────────────────
@@ -506,8 +508,7 @@ class FeatureDumper:
         fcfg.normalizer_min_obs = 50
         fcfg.normalizer_clamp   = 3.0
 
-        rcfg = hft_engine.RiskConfig()
-        self.engine = hft_engine.StrategyEngine(scfg, fcfg, rcfg)
+        self.engine = hft_engine.StrategyEngine(scfg, fcfg)
 
         # Rolling deque: holds only the last `horizon` (mid, row_values)
         # tuples — O(horizon) memory regardless of dataset size.
@@ -524,7 +525,8 @@ class FeatureDumper:
     # Column order — fixed so every row is consistent
     COLS = [
         'timestamp_ns', 'microprice', 'ofi', 'vpin', 'spread_bps',
-        'realized_vol', 'stat_arb_zscore', 'combined_alpha', 'regime',
+        'realized_vol', 'stat_arb_zscore', 'obi', 'trade_imbalance',
+        'hawkes_intensity', 'cvd', 'hurst_exponent', 'combined_alpha', 'regime',
         'mid_price', 'forward_return_{horizon}', 'is_warmed_up',
     ]
 
@@ -551,6 +553,11 @@ class FeatureDumper:
             fv.spread_bps,
             fv.realized_vol,
             fv.stat_arb_zscore,
+            fv.obi,
+            fv.trade_imbalance,
+            fv.hawkes_intensity,
+            fv.cvd,
+            fv.hurst_exponent,
             fv.combined_alpha,
             int(fv.regime),
             mid,
@@ -606,6 +613,8 @@ class FeatureDumper:
             mid, ts_ns,
             _FVSnapshot(fv.microprice, fv.ofi, fv.vpin, fv.spread_bps,
                         fv.realized_vol, fv.stat_arb_zscore,
+                        fv.obi, fv.trade_imbalance, fv.hawkes_intensity,
+                        fv.cvd, fv.hurst_exponent,
                         fv.combined_alpha, int(fv.regime)),
             warmed,
         ))

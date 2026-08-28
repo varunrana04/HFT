@@ -9,7 +9,7 @@ IF NOT EXIST ".venv" (
 )
 
 call .venv\Scripts\activate.bat
-pip install -r requirements.txt pybind11
+pip install pybind11
 
 echo [INFO] Building C++ Core ^& Pybind11 Extension...
 IF NOT EXIST "build" mkdir build

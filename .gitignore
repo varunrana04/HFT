@@ -24,6 +24,7 @@ CMakeFiles/
 .venv/
 venv/
 env/
+quant_env/
 
 # ── IDEs & OS ─────────────────────────────────────────────────────────────────
 .vscode/

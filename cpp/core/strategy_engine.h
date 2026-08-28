@@ -27,7 +27,7 @@
 #include "order_book.h"
 #include "feature_engine.h"
 #include "signal_combiner.h"
-#include "risk_manager.h"
+#include "kill_switch.h"
 #include "order_manager.h"
 #include "clock.h"
 
@@ -169,8 +169,7 @@ struct PerformanceMetrics {
 class StrategyEngine {
 public:
     StrategyEngine(const StrategyConfig& strategy_cfg = {},
-                   const FeatureConfig& feature_cfg = {},
-                   const RiskConfig& risk_cfg = {}) noexcept;
+                   const FeatureConfig& feature_cfg = {}) noexcept;
 
     // ── Event Handlers ──────────────────────────────────────
     /**
@@ -214,6 +213,9 @@ public:
     void set_realized_pnl(double pnl) noexcept { realized_pnl_ = pnl; }
     void set_avg_entry_price(double px) noexcept { avg_entry_price_ = px; }
 
+    /// Force a sync of the kill switch state (useful at boot)
+    void update_kill_switch_state(int64_t timestamp_ms) noexcept;
+
     [[nodiscard]] const std::vector<TradeRecord>& trade_journal() const noexcept {
         return journal_;
     }
@@ -230,6 +232,11 @@ public:
         return last_fv_;
     }
 
+    /// Access the latest orderbook snapshot (for live engine reporting)
+    [[nodiscard]] const BookSnapshot& latest_book() const noexcept {
+        return last_book_;
+    }
+
     /// Performance metrics snapshot
     [[nodiscard]] PerformanceMetrics metrics() const noexcept {
         PerformanceMetrics snap = metrics_;
@@ -237,10 +244,10 @@ public:
         return snap;
     }
 
-    /// Risk statistics
-    [[nodiscard]] const RiskStats& risk_stats() const noexcept {
-        return risk_mgr_.stats();
-    }
+    /// Risk statistics (placeholder if needed, else delete)
+    // [[nodiscard]] const RiskStats& risk_stats() const noexcept {
+    //     return risk_mgr_.stats();
+    // }
 
 
 
@@ -303,23 +310,6 @@ public:
         combiner_.set_stat_arb_valid(valid);
     }
 
-    /**
-     * @brief Load a full LightGBM ONNX model for production inference.
-     *
-     * Switches combiner to ONNX_MODEL mode automatically.
-     * n_features must match the number of input features the model
-     * was exported with (check training_report.md for the count).
-     *
-     * Requires -DHFT_ONNX_SUPPORT at compile time.
-     *
-     * @param path       Path to lgb_model.onnx
-     * @param n_features Number of input features (default 6 = base only)
-     * @return true on success
-     */
-    [[nodiscard]] bool load_onnx_model(const char* path,
-                                        int64_t n_features = 6) noexcept {
-        return combiner_.load_onnx_model(path, n_features);
-    }
 
     /// Switch combiner mode directly
     void set_combiner_mode(CombinerMode m) noexcept { combiner_.set_mode(m); }
@@ -332,14 +322,6 @@ public:
     /// True if a binary ML model has been loaded
     [[nodiscard]] bool has_model() const noexcept { return combiner_.has_model(); }
 
-    /// True if an ONNX model has been loaded and verified
-    [[nodiscard]] bool has_onnx() const noexcept { return combiner_.has_onnx(); }
-
-    /// Number of features expected by the loaded ONNX model (6 if none loaded)
-    [[nodiscard]] int64_t onnx_n_features() const noexcept {
-        return combiner_.onnx_n_features();
-    }
-
 private:
     // ── Configuration ───────────────────────────────────────
     StrategyConfig strategy_;
@@ -348,7 +330,7 @@ private:
     // ── Sub-Engines ─────────────────────────────────────────
     FeatureEngine  features_;
     SignalCombiner combiner_;
-    RiskManager    risk_mgr_;
+    core::KillSwitch kill_switch_;
     OrderManager   order_mgr_;
 
     // ── State ───────────────────────────────────────────────
@@ -361,6 +343,7 @@ private:
     int64_t  session_start_ns_ = 0;    ///< First tick timestamp of the day
     int64_t  last_funding_ts_ns_ = 0;  ///< Last absolute funding epoch boundary cleared
     int64_t  last_trade_ns_  = 0;      ///< Timestamp of last trade execution
+    double   position_peak_unrealized_pnl_ = 0.0; ///< Trailing stop high-water mark
 
     // ── Last seen L2 book (for book-sweep simulation in simulate_fill) ──
     BookSnapshot last_book_  = {};     ///< Snapshot of the most recent valid book

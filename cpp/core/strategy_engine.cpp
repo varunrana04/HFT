@@ -16,16 +16,15 @@ namespace hft {
 
 // ─── Constructor ────────────────────────────────────────────
 StrategyEngine::StrategyEngine(const StrategyConfig& strategy_cfg,
-                               const FeatureConfig& feature_cfg,
-                               const RiskConfig& risk_cfg) noexcept
+                               const FeatureConfig& feature_cfg) noexcept
     : strategy_(strategy_cfg),
       features_(feature_cfg),
       combiner_(),
-      risk_mgr_(risk_cfg),
-      order_mgr_() {
+      kill_switch_(strategy_cfg.initial_capital, strategy_cfg.max_position_pct, 20.0, 5000, "kill_switch_state.txt"),
+      order_mgr_(&kill_switch_) {
     journal_.reserve(4096);  // Pre-allocate for backtest
     prev_equity_ = strategy_.initial_capital;
-    risk_mgr_.update_equity(strategy_.initial_capital);
+    kill_switch_.update_state(0.0, 0.0, 0.0, 0); // initial state
 }
 
 // ─── Main Event Handler ─────────────────────────────────────
@@ -120,8 +119,8 @@ void StrategyEngine::on_trade(const Trade& trade,
     double abs_alpha = std::abs(alpha);
 
     // ── ACTIVE CIRCUIT BREAKER ──
-    if (risk_mgr_.is_circuit_breaker_active()) {
-        if (position_ != 0) {
+    if (kill_switch_.is_trading_halted(last_fv_.timestamp_ns / 1000000)) {
+        if (position_ != 0 && kill_switch_.should_flatten()) {
             // Panic liquidate all positions
             Side close_side = (position_ > 0) ? Side::ASK : Side::BID; 
             int64_t close_qty = std::abs(position_);
@@ -137,12 +136,39 @@ void StrategyEngine::on_trade(const Trade& trade,
         return; // Block all new trading
     }
 
-    // ── HARD STOP-LOSS LOGIC ──
+    // ── HARD STOP-LOSS & TRAILING STOP LOGIC ──
     if (position_ != 0) {
         double unrl_pnl = unrealized_pnl();
         double current_eq = equity();
-        // If the open position is dragging the account down by > 2%
-        if (current_eq > 0.0 && (unrl_pnl / current_eq) < -0.02) {
+        
+        if (unrl_pnl > position_peak_unrealized_pnl_) {
+            position_peak_unrealized_pnl_ = unrl_pnl;
+        }
+
+        // Hard Stop-Loss: If open position drags account down by > 2%
+        bool hard_stop = (current_eq > 0.0 && (unrl_pnl / current_eq) < -0.02);
+        
+        // Volatility-Adjusted Trailing Stop
+        // We use spread + realized volatility to determine a dynamic trailing buffer.
+        double spread_bps = 0.0;
+        if (book.best_ask_price > 0 && book.best_bid_price > 0) {
+            spread_bps = (double)(book.best_ask_price - book.best_bid_price) / book.best_bid_price * 10000.0;
+        }
+        // Base buffer is minimum take profit bps + 2x spread + vol scaler
+        double trailing_buffer_bps = strategy_.min_take_profit_bps + (spread_bps * 2.0) + (last_fv_.realized_vol * 100.0);
+        
+        double notional = std::abs(fixed_to_qty(position_)) * fixed_to_price(last_mid_price_);
+        double trailing_buffer_pnl = (trailing_buffer_bps / 10000.0) * notional;
+        
+        // Trigger trailing stop if we reached a decent profit peak, and gave back the buffer
+        bool trailing_stop = false;
+        if (position_peak_unrealized_pnl_ > trailing_buffer_pnl * 1.5) { // Ensure we actually had a good peak
+            if (unrl_pnl < position_peak_unrealized_pnl_ - trailing_buffer_pnl) {
+                trailing_stop = true;
+            }
+        }
+
+        if (hard_stop || trailing_stop) {
             Side close_side = (position_ > 0) ? Side::ASK : Side::BID;
             int64_t close_qty = std::abs(position_);
             // Taker hits the opposite side of the book: SELL hits BID, BUY hits ASK
@@ -189,12 +215,8 @@ void StrategyEngine::on_trade(const Trade& trade,
                 close_side, exit_price, close_qty,
                 OrderType::LIMIT, exit_price);
 
-            // Risk check (exits are almost always allowed)
-            double current_eq = equity();
-            RiskVerdict verdict = risk_mgr_.check_order(
-                exit_order, position_, realized_pnl_, current_eq);
-
-            if (verdict == RiskVerdict::PASS) {
+            // Risk check (handled inside create_order now)
+            if (exit_order.state != OrderState::REJECTED) {
                 if (!pending_order_.active || pending_order_.price != exit_price || pending_order_.side != close_side) {
                     pending_order_.active = true;
                     pending_order_.side = close_side;
@@ -218,7 +240,6 @@ void StrategyEngine::on_trade(const Trade& trade,
                     pending_order_.timestamp_ns = last_fv_.timestamp_ns;
                 }
             }
-            // Even if risk rejects exit, we don't count it as rejection
         }
         return;
     }
@@ -273,35 +294,30 @@ void StrategyEngine::on_trade(const Trade& trade,
             session_start_ns_ = last_fv_.timestamp_ns;
         }
 
-        // ── DEEP REINFORCEMENT LEARNING (RL) POLICY ────────────────────
-        // Replaced static Avellaneda-Stoikov deterministic math with an RL Action Space.
-        // The Deep Q-Network (DQN) / PPO policy takes the FeatureVector state and outputs
-        // the optimal discrete action [0: L1_Touch, 1: L2_Skew, 2: L3_Deep, 3: Cancel]
-        // Currently simulating the ONNX inference output dynamically based on regime and toxicity.
-
+        // ── LIGHTGBM DRIVEN AVELLANEDA-STOIKOV ────────────────────
+        // The LightGBM model combined the non-linear features into a single alpha [-1, 1].
+        // We use this alpha to dynamically skew our reservation price.
+        
         double lambda_intensity = std::tanh(last_fv_.hawkes_intensity);
-        double q = fixed_to_qty(position_);
-        uint8_t regime_idx = static_cast<uint8_t>(last_fv_.regime);
         
-        // Simulating RL Agent Policy Inference
-        // In production, this will be: auto action = rl_onnx_session_.run(last_fv_.to_tensor());
-        double rl_spread_bps = 1.0; // Base spread 1 bps
-        double rl_skew_bps = 0.0;
+        // Base spread (1 bps) + volatility expansion
+        double base_spread_bps = 1.0 + (last_fv_.realized_vol * 10.0); 
         
-        if (regime_idx == static_cast<uint8_t>(Regime::HIGH_TOXICITY) || lambda_intensity > 0.6) {
-            rl_spread_bps += 2.0; // Agent widens spread in toxic regimes
-            // Agent skews quotes away from toxic flow
-            rl_skew_bps = (q > 0) ? -2.0 : 2.0; 
-        } else if (regime_idx == static_cast<uint8_t>(Regime::TRENDING)) {
-            // Agent aligns skew with the trend to avoid getting run over
-            rl_skew_bps = (alpha > 0) ? 1.5 : -1.5;
+        // Widen spread in high toxicity regimes
+        if (static_cast<uint8_t>(last_fv_.regime) == static_cast<uint8_t>(Regime::HIGH_TOXICITY) || lambda_intensity > 0.6) {
+            base_spread_bps += 2.0; 
         }
 
-        double optimal_spread = rl_spread_bps * 5.0; // Mock conversion to absolute price terms
-        double reservation_price = fixed_to_price(last_mid_price_) + (rl_skew_bps * 5.0);
+        double optimal_spread = fixed_to_price(last_mid_price_) * (base_spread_bps / 10000.0); 
         
-        int64_t rl_bid = price_to_fixed(reservation_price - optimal_spread / 2.0);
-        int64_t rl_ask = price_to_fixed(reservation_price + optimal_spread / 2.0);
+        // Skew reservation price using LightGBM alpha. 
+        // If alpha > 0, we expect price to rise, so we shift reservation up to buy higher and sell higher.
+        // alpha is in [-1, 1], so we map it to a max skew of 2 bps.
+        double max_skew = fixed_to_price(last_mid_price_) * (2.0 / 10000.0);
+        double reservation_price = fixed_to_price(last_mid_price_) + (alpha * max_skew);
+        
+        int64_t lgbm_bid = price_to_fixed(reservation_price - optimal_spread / 2.0);
+        int64_t lgbm_ask = price_to_fixed(reservation_price + optimal_spread / 2.0);
 
         // ── QUEUE-REACTIVE EXECUTION ────────────────────
         
@@ -312,8 +328,8 @@ void StrategyEngine::on_trade(const Trade& trade,
         
         int64_t exec_price = 0;
         if (entry_side == Side::BID) {
-            // We want to buy. Start at the RL policy bid.
-            int64_t base_price = rl_bid;
+            // We want to buy. Start at the LightGBM policy bid.
+            int64_t base_price = lgbm_bid;
             // Cap at Best Bid so we remain a Maker
             if (base_price > book.best_bid_price) base_price = book.best_bid_price; 
             
@@ -321,8 +337,8 @@ void StrategyEngine::on_trade(const Trade& trade,
             int64_t skew_penalty = price_to_fixed(optimal_spread * lambda_intensity * 0.5);
             exec_price = base_price - skew_penalty;
         } else {
-            // We want to sell. Start at the RL policy ask.
-            int64_t base_price = rl_ask;
+            // We want to sell. Start at the LightGBM policy ask.
+            int64_t base_price = lgbm_ask;
             // Cap at Best Ask so we remain a Maker
             if (base_price < book.best_ask_price) base_price = book.best_ask_price; 
             
@@ -347,10 +363,7 @@ void StrategyEngine::on_trade(const Trade& trade,
             OrderType::LIMIT, last_mid_price_);
 
         // Risk gate
-        RiskVerdict verdict = risk_mgr_.check_order(
-            entry_order, position_, realized_pnl_, current_eq);
-
-        if (verdict == RiskVerdict::PASS) {
+        if (entry_order.state != OrderState::REJECTED) {
             if (!pending_order_.active || pending_order_.price != exec_price || pending_order_.side != entry_side) {
                 pending_order_.active = true;
                 pending_order_.side = entry_side;
@@ -402,7 +415,7 @@ void StrategyEngine::on_book_update(const BookSnapshot& book) noexcept {
 
     // Update equity tracking with new mark-to-market
     double eq = equity();
-    risk_mgr_.update_equity(eq);
+    kill_switch_.update_state(fixed_to_qty(position_), unrealized_pnl(), realized_pnl_, book.timestamp_ns / 1000000);
 
     // Continuous tick-by-tick drawdown tracking
     if (eq > metrics_.peak_equity) {
@@ -433,6 +446,10 @@ double StrategyEngine::unrealized_pnl() const noexcept {
 
 double StrategyEngine::equity() const noexcept {
     return strategy_.initial_capital + realized_pnl_ + unrealized_pnl();
+}
+
+void StrategyEngine::update_kill_switch_state(int64_t timestamp_ms) noexcept {
+    kill_switch_.update_state(fixed_to_qty(position_), unrealized_pnl(), realized_pnl_, timestamp_ms);
 }
 
 // ─── Compute Order Size ─────────────────────────────────────
@@ -607,8 +624,10 @@ void StrategyEngine::simulate_fill(Side side, int64_t price,
             if (remaining > 0) {
                 avg_entry_price_ = fill_price;
                 position_ += remaining;
+                position_peak_unrealized_pnl_ = 0.0;
             } else if (position_ == 0) {
                 avg_entry_price_ = 0.0;
+                position_peak_unrealized_pnl_ = 0.0;
             }
         } else {
             // Opening/adding to long position → update VWAP
@@ -634,8 +653,10 @@ void StrategyEngine::simulate_fill(Side side, int64_t price,
             if (remaining > 0) {
                 avg_entry_price_ = fill_price;
                 position_ -= remaining;
+                position_peak_unrealized_pnl_ = 0.0;
             } else if (position_ == 0) {
                 avg_entry_price_ = 0.0;
+                position_peak_unrealized_pnl_ = 0.0;
             }
         } else {
             // Opening/adding to short position → update VWAP
@@ -671,7 +692,7 @@ void StrategyEngine::simulate_fill(Side side, int64_t price,
 
     last_trade_ns_ = last_fv_.timestamp_ns;
     update_metrics(trade_pnl, slippage);
-    risk_mgr_.update_equity(equity());
+    kill_switch_.update_state(fixed_to_qty(position_), unrealized_pnl(), realized_pnl_, last_fv_.timestamp_ns / 1000000);
 }
 
 // ─── Update Performance Metrics ─────────────────────────────
@@ -718,7 +739,7 @@ void StrategyEngine::record_return() noexcept {
 // ─── Reset ──────────────────────────────────────────────────
 void StrategyEngine::reset() noexcept {
     features_.reset();
-    risk_mgr_.reset();
+    kill_switch_.manual_reset("Engine reset", now_ns() / 1000000);
     position_        = 0;
     realized_pnl_    = 0.0;
     avg_entry_price_ = 0.0;
@@ -726,17 +747,19 @@ void StrategyEngine::reset() noexcept {
     tick_count_      = 0;
     prev_equity_     = strategy_.initial_capital;
     session_start_ns_ = 0;
+    position_peak_unrealized_pnl_ = 0.0;
+    last_funding_ts_ns_ = 0;
     last_fv_         = {};
     last_book_       = {};
     metrics_         = {};
     journal_.clear();
     equity_history_.clear();
-    risk_mgr_.update_equity(strategy_.initial_capital);
+    kill_switch_.update_state(0.0, 0.0, 0.0, now_ns() / 1000000);
 }
 
 // ─── New Trading Day ────────────────────────────────────────
 void StrategyEngine::new_trading_day() noexcept {
-    risk_mgr_.new_trading_day();
+    // kill_switch handles daily reset based on timestamp automatically
     session_start_ns_ = 0; // Reset session start for new day
 }
 

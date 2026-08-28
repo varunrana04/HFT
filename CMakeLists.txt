@@ -22,72 +22,6 @@ else()
     endif()
 endif()
 
-# ─── ONNX Runtime (optional) ──────────────────────────────────
-# To enable full LightGBM ONNX inference in SignalCombiner:
-#
-#   cmake -DHFT_ONNX_SUPPORT=ON -DONNXRUNTIME_ROOT=/path/to/onnxruntime ..
-#
-# Download pre-built onnxruntime from:
-#   https://github.com/microsoft/onnxruntime/releases
-# Extract and point ONNXRUNTIME_ROOT at the extracted directory.
-# Example Windows path: C:/onnxruntime-win-x64-1.18.0
-#
-# When OFF (default), SignalCombiner compiles without any ONNX dependency
-# and load_onnx_model() always returns false (graceful no-op).
-
-option(HFT_ONNX_SUPPORT "Enable ONNX Runtime inference in SignalCombiner" OFF)
-
-if(HFT_ONNX_SUPPORT)
-    # Allow user to specify the root directory of a pre-built onnxruntime package
-    set(ONNXRUNTIME_ROOT "" CACHE PATH
-        "Root of extracted onnxruntime package (contains include/ and lib/)")
-
-    # Try find_package first (works if onnxruntime is installed system-wide)
-    find_package(onnxruntime QUIET
-        HINTS "${ONNXRUNTIME_ROOT}"
-              "${ONNXRUNTIME_ROOT}/lib/cmake/onnxruntime"
-    )
-
-    if(onnxruntime_FOUND)
-        message(STATUS "Found onnxruntime via find_package")
-        set(ORT_INCLUDE_DIRS "")
-        set(ORT_LIBRARIES    onnxruntime::onnxruntime)
-
-    elseif(EXISTS "${ONNXRUNTIME_ROOT}/include/onnxruntime_cxx_api.h")
-        # Manual path from extracted package
-        set(ORT_INCLUDE_DIRS "${ONNXRUNTIME_ROOT}/include")
-        if(WIN32)
-            file(GLOB ORT_LIB_CANDIDATES
-                "${ONNXRUNTIME_ROOT}/lib/onnxruntime.lib"
-                "${ONNXRUNTIME_ROOT}/lib/Release/onnxruntime.lib"
-            )
-        else()
-            file(GLOB ORT_LIB_CANDIDATES
-                "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so"
-                "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so.*"
-                "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.dylib"
-            )
-        endif()
-        if(ORT_LIB_CANDIDATES)
-            list(GET ORT_LIB_CANDIDATES 0 ORT_LIBRARIES)
-            message(STATUS "onnxruntime found at: ${ONNXRUNTIME_ROOT}")
-            message(STATUS "  Include: ${ORT_INCLUDE_DIRS}")
-            message(STATUS "  Library: ${ORT_LIBRARIES}")
-        else()
-            message(FATAL_ERROR
-                "HFT_ONNX_SUPPORT=ON but no onnxruntime library found under "
-                "${ONNXRUNTIME_ROOT}/lib/. "
-                "Download from https://github.com/microsoft/onnxruntime/releases "
-                "and set -DONNXRUNTIME_ROOT=/path/to/extracted/dir")
-        endif()
-
-    else()
-        message(FATAL_ERROR
-            "HFT_ONNX_SUPPORT=ON but ONNXRUNTIME_ROOT is not set or invalid.\n"
-            "Usage: cmake -DHFT_ONNX_SUPPORT=ON -DONNXRUNTIME_ROOT=/path/to/onnxruntime ..")
-    endif()
-endif()
-
 # ─── DPDK Kernel Bypass (optional) ────────────────────────────
 option(HFT_USE_DPDK "Enable DPDK for Kernel Bypass Networking" OFF)
 
@@ -112,32 +46,30 @@ else()
 endif()
 
 add_library(hft_core STATIC
+
     cpp/core/market_data.cpp
     cpp/core/order_book.cpp
     cpp/core/feature_engine.cpp
     cpp/core/signal_combiner.cpp
-    cpp/core/risk_manager.cpp
+    cpp/core/kill_switch.cpp
+
     cpp/core/order_manager.cpp
     cpp/core/data_validator.cpp
     cpp/core/strategy_engine.cpp
     cpp/net/dpdk_rx.cpp
     cpp/net/dpdk_tx.cpp
     cpp/gateway/binance_ws.cpp
+    cpp/gateway/delta_ws.cpp
+    cpp/gateway/delta_rest.cpp
     ${SIMDJSON_SRC}
 )
-target_include_directories(hft_core PUBLIC cpp/core cpp/net cpp/gateway)
-target_compile_options(hft_core PRIVATE -fexceptions)
+
+find_package(OpenSSL REQUIRED)
+target_include_directories(hft_core PUBLIC cpp/core cpp/net cpp/gateway ${OPENSSL_INCLUDE_DIR})
+target_link_libraries(hft_core PUBLIC ixwebsocket ${OPENSSL_LIBRARIES})
 set_target_properties(hft_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-if(HFT_ONNX_SUPPORT)
-    target_link_libraries(hft_core PUBLIC ${ORT_LIBRARIES})
-    target_include_directories(hft_core PUBLIC ${ORT_INCLUDE_DIRS})
-    target_compile_definitions(hft_core PUBLIC HFT_ONNX_SUPPORT)
-    message(STATUS "[hft_core] ONNX Runtime inference: ENABLED")
-else()
-    message(STATUS "[hft_core] ONNX Runtime inference: DISABLED "
-                   "(build with -DHFT_ONNX_SUPPORT=ON to enable)")
-endif()
+
 
 # Find uWebSockets dependencies (for server, if we needed it)
 find_library(USOCKETS_LIB uSockets /usr/local/lib)
@@ -148,7 +80,10 @@ endif()
 
 # ─── IXWebSocket (For Binance C++ Client) ────────────────────────
 include(FetchContent)
-set(USE_TLS ON CACHE BOOL "IXWebSocket use TLS")
+set(USE_TLS ON CACHE BOOL "IXWebSocket use TLS" FORCE)
+set(USE_OPEN_SSL ON CACHE BOOL "IXWebSocket use OpenSSL" FORCE)
+set(USE_MBED_TLS OFF CACHE BOOL "IXWebSocket use MbedTLS" FORCE)
+set(USE_ZLIB OFF CACHE BOOL "IXWebSocket use ZLIB" FORCE)
 FetchContent_Declare(
     ixwebsocket
     GIT_REPOSITORY https://github.com/machinezone/IXWebSocket.git
@@ -156,7 +91,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(ixwebsocket)
 target_link_libraries(hft_core PUBLIC ixwebsocket)
-message(STATUS "[hft_core] IXWebSocket client: ENABLED")
+message(STATUS "[hft_core] IXWebSocket client: ENABLED (TLS ON)")
 
 if(HFT_USE_DPDK)
     target_compile_definitions(hft_core PUBLIC HFT_USE_DPDK)
@@ -200,7 +135,7 @@ if(HFT_BUILD_PYTHON)
 
         # Copy MinGW runtime DLLs next to the .pyd so Python can load it
         # without needing mingw64/bin in PATH (Windows DLL search path issue).
-        set(MINGW_BIN "$ENV{USERPROFILE}/mingw64/bin")
+        set(MINGW_BIN "C:/msys64/mingw64/bin")
         foreach(DLL
             "libgcc_s_seh-1.dll"
             "libstdc++-6.dll"
@@ -215,26 +150,17 @@ if(HFT_BUILD_PYTHON)
             endif()
         endforeach()
 
-        # When ONNX is enabled, copy onnxruntime DLL next to the .pyd too
-        if(HFT_ONNX_SUPPORT AND WIN32)
-            file(GLOB ORT_DLLS "${ONNXRUNTIME_ROOT}/lib/onnxruntime*.dll")
-            foreach(DLL ${ORT_DLLS})
-                add_custom_command(TARGET hft_engine POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        "${DLL}"
-                        "$<TARGET_FILE_DIR:hft_engine>/"
-                    COMMENT "Copying ${DLL} next to hft_engine.pyd"
-                )
-            endforeach()
-        endif()
-
     else()
         message(STATUS "Python3 not found — skipping Python bindings")
     endif()
 endif()
 
+# ─── Live Engine Executable ────────────────────────────────────
+add_executable(hft_engine_live cpp/main.cpp)
+target_link_libraries(hft_engine_live PRIVATE hft_core)
+
 # ─── Tests ─────────────────────────────────────────────────────
-option(HFT_BUILD_TESTS "Build unit tests" ON)
+option(HFT_BUILD_TESTS "Build unit tests" OFF)
 if(HFT_BUILD_TESTS)
     enable_testing()
     add_executable(hft_tests
@@ -245,10 +171,13 @@ if(HFT_BUILD_TESTS)
         cpp/tests/test_order_book.cpp
         cpp/tests/test_data_validator.cpp
         cpp/tests/test_feature_engine.cpp
-        cpp/tests/test_risk_manager.cpp
+        cpp/tests/test_kill_switch.cpp
+
         cpp/tests/test_strategy_engine.cpp
+        cpp/tests/test_order_manager.cpp
     )
-    target_link_libraries(hft_tests PRIVATE hft_core)
+    find_package(GTest REQUIRED)
+    target_link_libraries(hft_tests PRIVATE hft_core GTest::gtest GTest::gtest_main)
     target_include_directories(hft_tests PRIVATE cpp/core cpp/tests)
     if(NOT MSVC)
         target_compile_options(hft_tests PRIVATE
@@ -277,7 +206,7 @@ message(STATUS "")
 message(STATUS "═══ HFT Engine Build Configuration ═══")
 message(STATUS "  C++ Standard   : ${CMAKE_CXX_STANDARD}")
 message(STATUS "  Build type     : ${CMAKE_BUILD_TYPE}")
-message(STATUS "  ONNX Support   : ${HFT_ONNX_SUPPORT}")
+
 message(STATUS "  Python bindings: ${HFT_BUILD_PYTHON}")
 message(STATUS "  Tests          : ${HFT_BUILD_TESTS}")
 message(STATUS "  Benchmarks     : ${HFT_BUILD_BENCHMARKS}")

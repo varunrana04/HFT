@@ -29,7 +29,7 @@
 #include "market_data.h"
 #include "feature_engine.h"
 #include "signal_combiner.h"
-#include "risk_manager.h"
+#include "kill_switch.h"
 #include "order_manager.h"
 #include "strategy_engine.h"
 
@@ -154,9 +154,28 @@ static hft::Trade make_trade(int64_t seq) {
     return t;
 }
 
+#ifdef __linux__
+#include <sched.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
+
 // ─── Main ───────────────────────────────────────────────────
 
 int main() {
+    // Calibrate TSC against steady_clock
+    hft::calibrate_tsc();
+
+#ifdef __linux__
+    if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0) {
+        std::cerr << "[WARNING] mlockall failed. Run as root/CAP_IPC_LOCK for deterministic latency.\n";
+    }
+    int cpu = sched_getcpu();
+    if (cpu == 0) {
+        std::cerr << "[WARNING] Running on CPU 0 (likely non-isolated). Pin to an isolated core for true benchmarking.\n";
+    }
+#endif
+
     constexpr int WARMUP = 10'000;
     constexpr int ITERATIONS = 100'000;
 
@@ -319,32 +338,7 @@ int main() {
         results.push_back(compute_stats("Signal Combiner", latencies));
     }
 
-    // ── 7. Risk Manager ─────────────────────────────────────
-    {
-        std::vector<int64_t> latencies;
-        latencies.reserve(ITERATIONS);
-        hft::RiskConfig rcfg;
-        hft::RiskManager risk(rcfg);
-        risk.update_equity(100000.0);
-
-        for (int i = 0; i < ITERATIONS; ++i) {
-            hft::Order order{};
-            order.order_id = static_cast<uint64_t>(i);
-            order.price = hft::price_to_fixed(50000.0);
-            order.quantity = hft::qty_to_fixed(0.01);
-            order.side = hft::Side::BID;
-            order.type = hft::OrderType::LIMIT;
-
-            int64_t elapsed;
-            {
-                hft::ScopedTimer timer(elapsed);
-                risk.check_order(order, 0, 0.0, 100000.0);
-            }
-            latencies.push_back(elapsed);
-        }
-        results.push_back(compute_stats("Risk Manager (5 gates)", latencies));
-    }
-
+    // ── 7. Risk Manager (Removed) ───────────────────────────
     // ── 8. Full Pipeline: tick → features → signal → risk ──
     {
         std::vector<int64_t> latencies;
@@ -354,9 +348,8 @@ int main() {
         scfg.initial_capital = 100000.0;
         scfg.alpha_entry_threshold = 0.10;
         hft::FeatureConfig fcfg;
-        hft::RiskConfig rcfg;
 
-        auto engine = std::make_unique<hft::StrategyEngine>(scfg, fcfg, rcfg);
+        auto engine = std::make_unique<hft::StrategyEngine>(scfg, fcfg);
 
         // Warmup
         for (int i = 0; i < WARMUP; ++i) {
