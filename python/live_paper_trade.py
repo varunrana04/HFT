@@ -600,6 +600,48 @@ async def get_recent_trades_api():
         trades.reverse()
     return {"trades": trades}
 
+@app.post("/api/reset_kill_switch")
+async def reset_kill_switch():
+    """Manually lifts the kill-switch halt and re-anchors session equity.
+    Use this to resume trading after a halt without waiting for midnight UTC."""
+    try:
+        current_equity = engine.equity()
+        if hasattr(engine, '_halted'):
+            engine._halted = False
+        if hasattr(engine, '_session_start_equity'):
+            engine._session_start_equity = current_equity
+        daily_limit = getattr(getattr(engine, 'config', None), 'daily_loss_limit_usd', 50_000.0)
+        print(f"[ADMIN] Kill-switch manually reset. New session equity anchor: ${current_equity:,.2f} | limit: ${daily_limit:,.0f}")
+        return {"status": "ok", "session_equity_anchor": round(current_equity, 2), "daily_loss_limit": daily_limit}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+@app.get("/api/status")
+async def system_status():
+    """Quick system health snapshot."""
+    try:
+        eq   = engine.equity()
+        pos  = engine.position()
+        pnl  = engine.realized_pnl()
+        halt = getattr(engine, '_halted', False)
+        se   = getattr(engine, '_session_start_equity', eq)
+        lim  = getattr(getattr(engine, 'config', None), 'daily_loss_limit_usd', 50_000.0)
+        return {
+            "equity":               round(eq, 2),
+            "position_btc":         round(pos, 6),
+            "realized_pnl":         round(pnl, 2),
+            "session_start_equity": round(se, 2),
+            "session_loss":         round(se - eq, 2),
+            "daily_loss_limit":     lim,
+            "kill_switch_halted":   halt,
+            "bybit_mid":            round(bybit_mid, 2),
+            "cross_venue_spread_bps": round(cross_venue_spread_bps, 4),
+            "sentiment":            round(sentiment_score, 4),
+            "rl_mult":              round(rl_position_mult, 4),
+        }
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
 # ─── Dashboard Telemetry Server ────────────────────────────────
 chart_history = collections.deque(maxlen=100)
 
