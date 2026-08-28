@@ -127,33 +127,21 @@ def load_engine(silent: bool = False):
     if _engine_module is not None:
         return _engine_module
 
-    # Find the .pyd file
-    if not _BUILD_DIR.is_dir():
-        msg = (
-            f"\n"
-            f"  build/ directory not found at: {_BUILD_DIR}\n\n"
-            f"  Build the engine first:\n"
-            f"    .\\build_python_bridge.ps1\n"
-            f"  or:\n"
-            f"    cmake -B build -G \"MinGW Makefiles\" -DCMAKE_BUILD_TYPE=Release\n"
-            f"    cmake --build build --parallel"
-        )
-        if silent:
-            return None
-        raise ImportError(msg)
-
-    pyd_files = list(_BUILD_DIR.glob("hft_engine*.pyd")) + \
-                list(_BUILD_DIR.glob("hft_engine*.so")) + \
-                list(_THIS_DIR.glob("hft_engine*.pyd")) + \
-                list(_THIS_DIR.glob("hft_engine*.so"))   # Docker copies built .so here
-
+    # Find the .pyd / .so — search both build/ and python/ directories
+    pyd_files = []
+    if _BUILD_DIR.is_dir():
+        pyd_files += list(_BUILD_DIR.glob("hft_engine*.pyd"))
+        pyd_files += list(_BUILD_DIR.glob("hft_engine*.so"))
+    pyd_files += list(_THIS_DIR.glob("hft_engine*.pyd"))
+    pyd_files += list(_THIS_DIR.glob("hft_engine*.so"))
 
     if not pyd_files:
-        print("\n[WARNING] hft_engine.pyd not found. Falling back to Pure Python Mock Engine!")
+        # No C++ engine found — this is the normal path on Render (Python-only Docker image)
         import pure_python_engine as _mod
         _engine_module = _mod
         ENGINE_AVAILABLE = True
         return _mod
+
 
     # Find the pyd file that matches our python version if possible
     import sys
