@@ -1,4 +1,10 @@
 # ── Python ────────────────────────────────────────────────────────────────────
+# !! SECRETS — never commit !!
+.env
+.env.*
+secrets.json
+*_secrets.py
+
 __pycache__/
 *.py[cod]
 *$py.class
