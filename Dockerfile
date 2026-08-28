@@ -10,10 +10,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake \
     g++ \
     git \
+    curl \
     build-essential \
     ca-certificates \
     libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
+    libsimdjson-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    # Download simdjson amalgamation to the path CMakeLists.txt expects
+    && mkdir -p /usr/local/include/simdjson \
+    && curl -fsSL https://raw.githubusercontent.com/simdjson/simdjson/v3.10.1/singleheader/simdjson.h \
+         -o /usr/local/include/simdjson/simdjson.h \
+    && curl -fsSL https://raw.githubusercontent.com/simdjson/simdjson/v3.10.1/singleheader/simdjson.cpp \
+         -o /usr/local/include/simdjson/simdjson.cpp
 
 # ── Python deps ────────────────────────────────────────────────────────────────
 COPY requirements.txt .
@@ -35,7 +43,9 @@ RUN mkdir -p build && cd build && \
       -DUSE_AVX512=OFF \
       .. && \
     make -j$(nproc) 2>&1 || \
-    echo "[DOCKER] C++ build failed — pure_python_engine.py fallback will be used"
+    echo "[DOCKER] C++ build failed -> pure_python_engine.py fallback will be used" ; \
+    # Copy built .so next to engine_loader.py so it is found on the Python path
+    find build -name 'hft_engine*.so' -exec cp {} python/ \; 2>/dev/null || true
 
 # ── Port ────────────────────────────────────────────────────────────────────────
 EXPOSE 8080

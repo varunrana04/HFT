@@ -144,7 +144,9 @@ def load_engine(silent: bool = False):
 
     pyd_files = list(_BUILD_DIR.glob("hft_engine*.pyd")) + \
                 list(_BUILD_DIR.glob("hft_engine*.so")) + \
-                list(_THIS_DIR.glob("hft_engine*.pyd"))
+                list(_THIS_DIR.glob("hft_engine*.pyd")) + \
+                list(_THIS_DIR.glob("hft_engine*.so"))   # Docker copies built .so here
+
 
     if not pyd_files:
         print("\n[WARNING] hft_engine.pyd not found. Falling back to Pure Python Mock Engine!")
