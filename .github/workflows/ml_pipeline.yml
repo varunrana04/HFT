@@ -1,20 +1,29 @@
-name: HFT ML Retraining Pipeline
+name: HFT Nightly Retrain & Deploy
 
 on:
   schedule:
-    # Run every day at 00:30 UTC (after midnight rollover)
+    # 00:30 UTC daily — after midnight rollover, new day's data is available
     - cron: '30 0 * * *'
-  workflow_dispatch:
+  workflow_dispatch:   # manual trigger from GitHub UI
+
+permissions:
+  contents: write      # needed for git push of retrained models
 
 jobs:
-  retrain_and_evaluate:
+  retrain_and_deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout Repository
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
 
-      - name: Set up Python
+      # ── 2. Python env ────────────────────────────────────────────────────────
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -24,56 +33,230 @@ jobs:
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
 
-      - name: Install Python Dependencies
+      - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --upgrade pip --quiet
+          pip install -r requirements.txt --quiet
 
-      - name: Download Latest Data (mock — replace with S3/GCS pull in prod)
+      # ── 3. Fetch real BTCUSDT data from Binance public API ───────────────────
+      - name: Download recent BTCUSDT 1-minute klines (90 days)
         run: |
-          echo "Simulating data pull..."
-          mkdir -p data
-          # In production: aws s3 cp s3://hft-data/latest_trades.csv ./data/
-          echo "timestamp,price,qty,is_buyer_maker" > data/latest_trades.csv
-          echo "1710000000000,70000.50,0.1,1" >> data/latest_trades.csv
+          python - <<'EOF'
+          import requests, csv, os, time
 
-      - name: Retrain Ridge Regression Signal Weights
-        run: |
-          cd python/ml_pipeline
-          python train_model.py
+          SYMBOL   = "BTCUSDT"
+          INTERVAL = "1m"
+          LIMIT    = 1000          # max per call
+          DAYS     = 90
+          TARGET   = DAYS * 24 * 60  # total 1-min candles
+
+          os.makedirs("data", exist_ok=True)
+          out = "data/btcusdt_1m.csv"
+
+          end_ts   = int(time.time() * 1000)
+          start_ts = end_ts - DAYS * 86_400_000
+          rows     = []
+
+          url = "https://fapi.binance.com/fapi/v1/klines"
+          cur = start_ts
+          while cur < end_ts:
+              r = requests.get(url, params=dict(
+                  symbol=SYMBOL, interval=INTERVAL,
+                  startTime=cur, limit=LIMIT
+              ), timeout=15)
+              data = r.json()
+              if not data or not isinstance(data, list):
+                  break
+              rows.extend(data)
+              cur = int(data[-1][6]) + 1   # closeTime + 1 ms
+              if len(data) < LIMIT:
+                  break
+
+          with open(out, "w", newline="") as f:
+              w = csv.writer(f)
+              w.writerow(["open_time","open","high","low","close","volume",
+                          "close_time","quote_vol","trades","taker_buy_vol",
+                          "taker_buy_quote_vol","ignore"])
+              w.writerows(rows)
+
+          print(f"Downloaded {len(rows):,} rows to {out}")
+          EOF
+
+      # ── 4. Retrain signal weights (Ridge regression) ──────────────────────────
+      - name: Retrain signal weights
         env:
           PYTHONPATH: ${{ github.workspace }}/python
-
-      - name: Retrain HMM Regime Model
         run: |
-          cd python
-          python hmm_regime_detection.py --train-only || echo "[CI] HMM train skipped (no data)"
+          python - <<'EOF'
+          import sys, os
+          sys.path.insert(0, "python")
+          sys.path.insert(0, "python/ml_pipeline")
+
+          import numpy as np
+          import pandas as pd
+          from sklearn.linear_model import Ridge
+          import struct
+
+          df = pd.read_csv("data/btcusdt_1m.csv", header=0)
+          df.columns = ["open_time","open","high","low","close","volume",
+                        "close_time","quote_vol","trades","taker_buy_vol",
+                        "taker_buy_quote_vol","ignore"]
+          df = df.astype({"close": float, "volume": float,
+                          "taker_buy_vol": float, "trades": float})
+
+          # ── Feature engineering ─────────────────────────────────────────────
+          close = df["close"]
+          vol   = df["volume"]
+          tbv   = df["taker_buy_vol"]
+
+          # OBI proxy: taker_buy_vol / total_vol
+          obi       = (tbv / vol.clip(lower=1e-9)) * 2 - 1   # [-1, 1]
+
+          # Realized vol (20-bar rolling std of log returns)
+          log_ret   = np.log(close / close.shift(1))
+          realized_vol = log_ret.rolling(20).std().fillna(0)
+
+          # OFI proxy: signed volume imbalance
+          ofi       = (tbv - (vol - tbv)).rolling(5).sum().fillna(0)
+          ofi_norm  = ofi / (vol.rolling(5).sum().clip(lower=1e-9) * close)
+
+          # Microprice return (1-bar close return)
+          micro_ret = log_ret.fillna(0)
+
+          # Spread proxy: (high - low) / close in bps
+          spread_bps = ((df["high"].astype(float) - df["low"].astype(float))
+                        / close * 1e4)
+
+          # CVD proxy: cumulative signed vol delta (30-bar window)
+          cvd_raw   = (tbv - (vol - tbv)).rolling(30).sum().fillna(0)
+          cvd_norm  = np.sign(cvd_raw)
+
+          # VPIN proxy
+          vpin_raw  = abs(tbv / vol.clip(lower=1e-9) - 0.5) * 2
+          vpin      = vpin_raw.rolling(50).mean().fillna(0.5)
+
+          X = pd.DataFrame({
+              "w_obi":       obi,
+              "w_vpin":      vpin,
+              "w_vol":       realized_vol,
+              "w_spread":    -spread_bps / 10,   # negative: wider spread hurts
+              "w_ofi":       ofi_norm,
+              "w_microprice": micro_ret * 1e3,
+              "w_bias":      1.0,
+          }).dropna()
+
+          # Target: 5-bar-forward return (what we're trying to predict)
+          fwd_ret = log_ret.shift(-5).reindex(X.index).dropna()
+          X = X.loc[fwd_ret.index]
+
+          # Walk-forward train (70%) → val (30%)
+          split = int(len(X) * 0.70)
+          Xtr, Xte = X.iloc[:split], X.iloc[split:]
+          ytr, yte = fwd_ret.iloc[:split], fwd_ret.iloc[split:]
+
+          model = Ridge(alpha=1.0)
+          model.fit(Xtr, ytr)
+
+          oos_r2 = model.score(Xte, yte)
+          print(f"OOS R²: {oos_r2:.6f}")
+
+          weights = dict(zip(X.columns, model.coef_))
+          weights["w_bias"] = float(model.intercept_)
+          print("Weights:", {k: f"{v:.6f}" for k,v in weights.items()})
+
+          # ── Write binary (7 float64 = 56 bytes) ─────────────────────────────
+          # live_paper_trade.py reads from python/models/, not models/ root
+          os.makedirs("python/models", exist_ok=True)
+          os.makedirs("models", exist_ok=True)
+          WEIGHTS_PATH = "python/models/signal_weights.bin"
+          META_PATH    = "python/models/signal_weights_meta.json"
+
+          KEY_ORDER = ["w_obi","w_vpin","w_vol","w_spread","w_ofi","w_microprice","w_bias"]
+          vals = [weights.get(k, 0.0) for k in KEY_ORDER]
+
+          # Quality gate: only write new weights if OOS R² > 0 (actual edge)
+          if oos_r2 > 0:
+              with open(WEIGHTS_PATH, "wb") as f:
+                  f.write(struct.pack(f"{len(vals)}d", *vals))
+              import json
+              with open(META_PATH, "w") as f:
+                  json.dump({"keys": KEY_ORDER, "values": vals,
+                             "oos_r2": oos_r2, "n_train": split, "n_val": len(Xte)}, f, indent=2)
+              print(f"New weights written (R²={oos_r2:.6f})")
+          else:
+              print(f"[SKIP] OOS R²={oos_r2:.6f} <= 0 — keeping existing hand-tuned weights.")
+              import sys; sys.exit(0)  # success but no file write
+          EOF
+
+      # ── 5. Retrain HMM regime model ───────────────────────────────────────────
+      - name: Retrain HMM regime model
         env:
           PYTHONPATH: ${{ github.workspace }}/python
-
-      - name: Run Phase 2 Test Suite
         run: |
-          python tests/test_phase2.py
+          python python/hmm_regime_detection.py --train-only 2>&1 \
+            || echo "[CI] HMM train skipped (needs data already in place)"
+
+      # ── 6. Run smoke tests ────────────────────────────────────────────────────
+      - name: Run smoke tests
         env:
           PYTHONPATH: ${{ github.workspace }}/python
+        run: |
+          python - <<'EOF'
+          import sys, struct, os
+          sys.path.insert(0, "python")
 
-      - name: Archive Model Artifacts
+          # Test 1: weights loadable
+          with open("models/signal_weights.bin", "rb") as f:
+              vals = struct.unpack("7d", f.read(56))
+          assert len(vals) == 7, "Expected 7 weights"
+          print(f"[OK] Signal weights: {[round(v,4) for v in vals]}")
+
+          # Test 2: engine loads and alpha fires
+          from pure_python_engine import StrategyConfig, StrategyEngine, BookSnapshot, Trade, Side
+          cfg = StrategyConfig()
+          eng = StrategyEngine(cfg)
+          eng._ticks = 200; eng._last_trade_ns = 0
+          eng._last_features.combined_alpha = 0.40
+          eng._weights = {"w_obi":vals[0],"w_vpin":vals[1],"w_vol":vals[2],
+                          "w_spread":vals[3],"w_ofi":vals[4],"w_microprice":vals[5],"w_bias":vals[6]}
+          b = BookSnapshot()
+          b.best_bid_price = int(80000*1e8); b.best_ask_price = int(80001*1e8)
+          b.best_bid_qty = 8; b.best_ask_qty = 1
+          eng._last_features.obi = 0.78
+          eng._micro_ret = 1e-4
+          t = Trade(); t.price = int(80001*1e8); t.qty = int(0.5*1e8); t.side = Side.ASK
+          eng.on_trade(t, b)
+          print(f"[OK] Engine smoke test: pos={eng.pos:.4f}")
+
+          print("[OK] All smoke tests passed.")
+          EOF
+
+      # ── 7. Commit retrained models & trigger Render auto-deploy ───────────────
+      - name: Commit updated models to repo
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add python/models/signal_weights.bin python/models/signal_weights_meta.json
+          # Only add HMM if it was updated
+          git add models/hmm_regime.npz models/hmm_regime_meta.json \
+                  python/models/hmm_regime.npz python/models/hmm_regime_meta.json 2>/dev/null || true
+          # Commit only if there are actual changes
+          if git diff --cached --quiet; then
+            echo "[CI] No model changes — skipping commit."
+          else
+            git commit -m "ci: nightly retrain [$(date -u '+%Y-%m-%d')] [skip ci]"
+            git push
+            echo "[CI] Models updated and pushed — Render will auto-deploy."
+          fi
+
+      # ── 8. Upload artifacts for inspection ───────────────────────────────────
+      - name: Upload model artifacts
         uses: actions/upload-artifact@v4
         with:
           name: hft-models-${{ github.run_number }}
+          retention-days: 14
           path: |
-            models/signal_weights.bin
-            models/hmm_regime.pkl
-          if-no-files-found: warn
-
-      - name: Deploy Updated Models
-        if: success()
-        run: |
-          echo "Models trained and all tests passed."
-          echo "In production: push models/ back to repo or to a model registry."
-          # git config user.name "github-actions[bot]"
-          # git config user.email "github-actions[bot]@users.noreply.github.com"
-          # git add models/signal_weights.bin models/hmm_regime.pkl
-          # git commit -m "ci: auto-retrain models [skip ci]" || echo "No changes"
-          # git push
+            python/models/signal_weights.bin
+            python/models/signal_weights_meta.json

@@ -1,0 +1,27 @@
+name: Render Auto-Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Only redeploy when strategy or model files change
+      - 'python/**'
+      - 'models/**'
+      - 'Dockerfile'
+      - 'requirements.txt'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Render deploy hook
+        # Set RENDER_DEPLOY_HOOK_URL in GitHub Secrets:
+        # Render → Service → Settings → Deploy Hooks → Create Hook → copy URL
+        if: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
+        run: |
+          curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            --max-time 15 \
+            && echo "Render deploy triggered." \
+            || echo "Deploy hook failed (non-fatal)."

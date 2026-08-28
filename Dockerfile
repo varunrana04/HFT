@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # ── Python deps ────────────────────────────────────────────────────────────────
 ENV PIP_NO_WARN_SCRIPT_LOCATION=1
+ENV PIP_ROOT_USER_ACTION=ignore
 COPY requirements.txt .
 RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 
