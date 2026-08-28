@@ -343,36 +343,55 @@ class StrategyEngine:
         regime     = int(self._last_features.regime)
         mid        = (book.best_bid_price + book.best_ask_price) / 2.0  # fixed-point
 
-        # ── Take-profit / Stop-loss exit (runs BEFORE entry logic) ───────────
+        # ── Volatility-adaptive TP / SL ───────────────────────────────────────
+        # Fixed bps levels get stopped out by noise in high-vol — scale by vol.
+        # realized_vol is annualised sigma; convert to per-tick bps equivalent.
+        # vol_scale: 1.0 at baseline (1% daily), up to 3.0 at extreme vol.
+        vol = max(self._last_features.realized_vol, 0.001)
+        vol_scale = min(vol / 0.01, 3.0)   # 0.01 = 1% daily baseline
+        tp_bps = self.config.min_take_profit_bps  * vol_scale  # 5→15 bps in 3× vol
+        sl_bps = self.config.stop_loss_bps        * vol_scale  # 10→30 bps in 3× vol
+
         if self.pos != 0.0 and self._entry_price > 0 and mid > 0:
             pnl_bps = (mid - self._entry_price) / self._entry_price * 10_000
             if self.pos > 0:   # long position
-                if pnl_bps >= self.config.min_take_profit_bps:
+                if pnl_bps >= tp_bps:
                     self._execute(book.best_bid_price, abs(self.pos), Side.ASK)
                     return
-                elif pnl_bps <= -self.config.stop_loss_bps:
+                elif pnl_bps <= -sl_bps:
                     self._execute(book.best_bid_price, abs(self.pos), Side.ASK)
-                    print(f"[RISK] Stop-loss: long exit at {pnl_bps:.2f} bps")
+                    print(f"[RISK] Stop-loss: long exit at {pnl_bps:.2f} bps (sl={sl_bps:.1f})")
                     return
             else:              # short position
-                if -pnl_bps >= self.config.min_take_profit_bps:
+                if -pnl_bps >= tp_bps:
                     self._execute(book.best_ask_price, abs(self.pos), Side.BID)
                     return
-                elif -pnl_bps <= -self.config.stop_loss_bps:
+                elif -pnl_bps <= -sl_bps:
                     self._execute(book.best_ask_price, abs(self.pos), Side.BID)
-                    print(f"[RISK] Stop-loss: short exit at {-pnl_bps:.2f} bps")
+                    print(f"[RISK] Stop-loss: short exit at {-pnl_bps:.2f} bps (sl={sl_bps:.1f})")
                     return
 
         # ── Regime-aware thresholds ───────────────────────────────────────────
-        #   State 0: calm / trending    → standard (best edge conditions)
-        #   State 1: medium vol         → +25% wider (noise rising)
-        #   State 2: high vol / crisis  → +50% wider (very selective entries)
-        #   State 3: extreme crisis     → blocked upstream by ml_bridge_loop
+        #   State 0: calm/trending   → standard
+        #   State 1: medium vol      → +25% wider
+        #   State 2: high vol        → +50% wider, but still trade (wider TP/SL covers it)
+        #   State 3: crisis          → blocked upstream
         regime_mult = {0: 1.0, 1: 1.25, 2: 1.5, 3: 2.0}.get(regime, 1.0)
         base_thr     = self.config.alpha_entry_threshold
         spread_addon = spread_bps * self.config.spread_alpha_multiplier
         long_thr     = base_thr * regime_mult + spread_addon
         short_thr    = base_thr * self.config.alpha_short_multiplier * regime_mult + spread_addon
+
+        # ── CVD momentum boost ───────────────────────────────────────────────
+        # When CVD aligns with alpha direction, raise conviction → tighten threshold.
+        # CVD > +20 BTC in window = strong buying → boost long alpha by 10%
+        cvd = self._last_features.cvd
+        cvd_boost = 0.0
+        if abs(cvd) > 20.0:        # meaningful directional flow
+            cvd_boost = 0.10 * (1 if cvd > 0 else -1)
+        alpha_boosted = max(-1.0, min(1.0, alpha + cvd_boost))
+        # Only use boosted alpha for entry decision, not for sizing
+        entry_alpha = alpha_boosted
 
         # ── Kelly-scaled position sizing ──────────────────────────────────────
         # Larger size when signal is strong; scale down as inventory grows.
@@ -388,18 +407,18 @@ class StrategyEngine:
         order_qty = max(order_qty, 0.01)
 
         # ── Momentum confirmation (micro-price direction must agree) ──────────
-        micro_confirms_long  = self._micro_ret >= -1e-5   # not actively falling
-        micro_confirms_short = self._micro_ret <=  1e-5   # not actively rising
+        micro_confirms_long  = self._micro_ret >= -1e-5
+        micro_confirms_short = self._micro_ret <=  1e-5
 
         # ── Entry ─────────────────────────────────────────────────────────────
-        if (alpha > long_thr
+        if (entry_alpha > long_thr
                 and micro_confirms_long
                 and self.pos <= 0
                 and abs(self.pos) < max_pos
                 and book.best_ask_price > 0):
             self._execute(book.best_ask_price, order_qty, Side.BID)
 
-        elif (alpha < -short_thr
+        elif (entry_alpha < -short_thr
                 and micro_confirms_short
                 and self.pos >= 0
                 and abs(self.pos) < max_pos
