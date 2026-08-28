@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HFT Engine Dashboard</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lightweight Charts for high-performance time-series charting -->
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        body { background-color: #131722; color: #d1d4dc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .chart-container { height: 400px; width: 100%; }
+        .glass-panel { background: rgba(30, 34, 45, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+    </style>
+</head>
+<body class="p-6 h-screen flex flex-col">
+
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-3xl font-bold text-white tracking-tight">HFT Engine <span class="text-emerald-500">Live</span></h1>
+            <p class="text-sm text-gray-400 mt-1">Delta Exchange Testnet • Avellaneda-Stoikov Market Making</p>
+        </div>
+        <div class="flex gap-4">
+            <div id="connection-status" class="px-3 py-1 rounded-full bg-red-500/20 text-red-500 text-sm font-semibold flex items-center border border-red-500/30">
+                <span class="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></span> Disconnected
+            </div>
+        </div>
+    </div>
+
+    <!-- Metrics Row -->
+    <div class="grid grid-cols-4 gap-6 mb-6">
+        <div class="glass-panel p-5 rounded-xl shadow-lg">
+            <p class="text-gray-400 text-xs font-medium uppercase tracking-wider">Mid Price (BTC/USDT)</p>
+            <h2 id="metric-price" class="text-3xl font-mono font-bold mt-1 text-white">---</h2>
+            <p class="text-xs text-gray-500 mt-2">Spread: <span id="metric-spread" class="text-gray-300">---</span> bps</p>
+        </div>
+        <div class="glass-panel p-5 rounded-xl shadow-lg">
+            <p class="text-gray-400 text-xs font-medium uppercase tracking-wider">Alpha Signal</p>
+            <h2 id="metric-alpha" class="text-3xl font-mono font-bold mt-1 text-white">---</h2>
+            <div class="w-full bg-gray-700 h-1.5 mt-3 rounded-full overflow-hidden">
+                <div id="alpha-bar" class="h-full bg-blue-500 transition-all duration-100" style="width: 50%"></div>
+            </div>
+        </div>
+        <div class="glass-panel p-5 rounded-xl shadow-lg">
+            <p class="text-gray-400 text-xs font-medium uppercase tracking-wider">Net Position</p>
+            <h2 id="metric-pos" class="text-3xl font-mono font-bold mt-1 text-white">0</h2>
+            <p class="text-xs text-gray-500 mt-2">Inventory Skew Active</p>
+        </div>
+        <div class="glass-panel p-5 rounded-xl shadow-lg">
+            <p class="text-gray-400 text-xs font-medium uppercase tracking-wider">Total PnL</p>
+            <h2 id="metric-pnl" class="text-3xl font-mono font-bold mt-1 text-green-500">$0.00</h2>
+            <p class="text-xs text-gray-500 mt-2">Realized + Unrealized</p>
+        </div>
+    </div>
+
+    <!-- Charts Area -->
+    <div class="flex-1 grid grid-cols-1 gap-6 min-h-0">
+        <div class="glass-panel rounded-xl shadow-lg p-1 flex flex-col h-full relative">
+            <div class="absolute top-4 left-6 z-10 pointer-events-none">
+                <h3 class="text-white font-semibold shadow-sm">Microprice & Quotes</h3>
+            </div>
+            <div id="price-chart" class="flex-1 w-full rounded-lg overflow-hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Lightweight Charts
+        const chartContainer = document.getElementById('price-chart');
+        const chart = LightweightCharts.createChart(chartContainer, {
+            layout: {
+                background: { type: 'solid', color: 'transparent' },
+                textColor: '#d1d4dc',
+            },
+            grid: {
+                vertLines: { color: 'rgba(42, 46, 57, 0.5)' },
+                horzLines: { color: 'rgba(42, 46, 57, 0.5)' },
+            },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Normal,
+            },
+            rightPriceScale: {
+                borderColor: 'rgba(197, 203, 206, 0.8)',
+            },
+            timeScale: {
+                borderColor: 'rgba(197, 203, 206, 0.8)',
+                timeVisible: true,
+                secondsVisible: true,
+            },
+        });
+
+        // Add Series
+        const priceSeries = chart.addLineSeries({
+            color: '#2962FF',
+            lineWidth: 2,
+            title: 'Mid Price',
+            crosshairMarkerVisible: true,
+        });
+
+        // Handle Resize
+        window.addEventListener('resize', () => {
+            chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
+        });
+
+        // WebSocket Connection
+        let ws;
+        function connect() {
+            let wsUrl;
+            if (window.location.protocol === 'file:') {
+                wsUrl = 'ws://localhost:8081'; 
+            } else {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                wsUrl = `${protocol}//${window.location.host}/ws`; 
+            }
+            ws = new WebSocket(wsUrl);
+            const statusEl = document.getElementById('connection-status');
+            
+            ws.onopen = () => {
+                statusEl.className = 'px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-500 text-sm font-semibold flex items-center border border-emerald-500/30';
+                statusEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500 mr-2 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span> Live';
+            };
+
+            ws.onclose = () => {
+                statusEl.className = 'px-3 py-1 rounded-full bg-red-500/20 text-red-500 text-sm font-semibold flex items-center border border-red-500/30';
+                statusEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></span> Disconnected';
+                setTimeout(connect, 1000); // Reconnect
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                const now = Date.now() / 1000; // Lightweight charts uses unix timestamp in seconds
+                
+                const mid = (data.bid + data.ask) / 2;
+                const spread = ((data.ask - data.bid) / data.bid * 10000).toFixed(2);
+                
+                // Update DOM Metrics
+                document.getElementById('metric-price').innerText = mid.toFixed(1);
+                document.getElementById('metric-spread').innerText = spread;
+                
+                const alphaEl = document.getElementById('metric-alpha');
+                alphaEl.innerText = data.alpha.toFixed(4);
+                if (data.alpha > 0.05) alphaEl.className = 'text-3xl font-mono font-bold mt-1 text-emerald-400';
+                else if (data.alpha < -0.05) alphaEl.className = 'text-3xl font-mono font-bold mt-1 text-red-400';
+                else alphaEl.className = 'text-3xl font-mono font-bold mt-1 text-gray-300';
+                
+                // Animate Alpha Bar (-1 to 1 mapped to 0% to 100%)
+                const alphaPercent = Math.max(0, Math.min(100, ((data.alpha + 1) / 2) * 100));
+                const bar = document.getElementById('alpha-bar');
+                bar.style.width = `${alphaPercent}%`;
+                bar.className = `h-full transition-all duration-100 ${data.alpha > 0.05 ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : (data.alpha < -0.05 ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-gray-500')}`;
+
+                const posEl = document.getElementById('metric-pos');
+                const posStr = (data.pos / 100000000).toFixed(4);
+                posEl.innerText = posStr;
+                posEl.className = `text-3xl font-mono font-bold mt-1 ${data.pos > 0 ? 'text-blue-400' : (data.pos < 0 ? 'text-purple-400' : 'text-white')}`;
+
+                const pnlEl = document.getElementById('metric-pnl');
+                pnlEl.innerText = '$' + data.pnl.toFixed(2);
+                pnlEl.className = `text-3xl font-mono font-bold mt-1 ${data.pnl >= 0 ? 'text-emerald-500 shadow-emerald-500/20' : 'text-red-500 shadow-red-500/20'}`;
+
+                // Update Chart
+                priceSeries.update({
+                    time: now,
+                    value: mid
+                });
+            };
+        }
+
+        connect();
+    </script>
+</body>
+</html>
