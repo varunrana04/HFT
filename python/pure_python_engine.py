@@ -449,7 +449,7 @@ class StrategyEngine:
         r.timestamp_ns = int(time.time() * 1e9)
         self._last_trade_ns = r.timestamp_ns
         r.side         = side
-        r.quantity     = qty_signed
+        r.quantity     = int(qty_signed * 1e8)   # store in satoshis (matches C++ engine interface)
 
         if is_closing:
             pnl              = self.pos * (price_int - self._entry_price) / 1e8 - taker_fee

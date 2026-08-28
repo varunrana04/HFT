@@ -442,7 +442,7 @@ async def log_flusher_loop():
                 # 1. Update Account State
                 state_dict = {
                     "initial_capital": config.initial_capital,
-                    "position": engine.position(),
+                    "position": engine.position() * 1e8,    # satoshis — matches set_position() /1e8 on load
                     "realized_pnl": engine.realized_pnl()
                 }
                 
@@ -892,12 +892,33 @@ async def execution_loop():
 async def ml_bridge_loop():
     global rl_position_mult, _base_order_size_btc
     print("[INFO] Starting ML Bridge Loop (ADF & True HMM)")
-    model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'models', 'hmm_regime.pkl'))
     regime_model = None
+    _models_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'models'))
+    _npz_path   = os.path.join(_models_dir, 'hmm_regime.npz')
+    _meta_path  = os.path.join(_models_dir, 'hmm_regime_meta.json')
+    _pkl_path   = os.path.join(_models_dir, 'hmm_regime.pkl')
     try:
-        if os.path.exists(model_path):
-            regime_model = joblib.load(model_path)
-            print("[INFO] Loaded True HMM Regime Model")
+        if os.path.exists(_npz_path) and os.path.exists(_meta_path):
+            from sklearn.mixture import GaussianMixture as _GMM
+            _npz  = np.load(_npz_path)
+            _meta = json.load(open(_meta_path))
+            gmm   = _GMM(n_components=_meta['n_components'], covariance_type=_meta['covariance_type'])
+            gmm.means_               = _npz['means']
+            gmm.covariances_         = _npz['covariances']
+            gmm.precisions_cholesky_ = _npz['precisions_cholesky']
+            gmm.weights_             = _npz['weights']
+            gmm.converged_           = True
+            gmm.n_iter_              = 200
+            regime_model = {
+                'model':         gmm,
+                'mean':          np.array(_meta['scaler_mean']),
+                'std':           np.array(_meta['scaler_std']),
+                'state_mapping': {int(k): int(v) for k, v in _meta['state_mapping'].items()},
+            }
+            print("[INFO] Loaded GMM Regime Model (npz format)")
+        elif os.path.exists(_pkl_path):
+            regime_model = joblib.load(_pkl_path)
+            print("[INFO] Loaded GMM Regime Model (pkl fallback)")
     except Exception as e:
         print(f"[WARNING] Could not load regime model: {e}")
 
