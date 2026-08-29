@@ -76,6 +76,13 @@ void DeltaWs::start_live_feed(hft::StrategyEngine* engine) {
                 simdjson::dom::object obj;
                 if (doc.get_object().get(obj) != simdjson::SUCCESS) return;
                 
+                // Handle application-level Ping from Delta Exchange
+                std::string_view msg_type;
+                if (obj["type"].get(msg_type) == simdjson::SUCCESS && msg_type == "ping") {
+                    impl_->webSocket.send(R"({"type": "pong"})");
+                    return; // Successfully handled ping
+                }
+
                 // Check if it's an orderbook message
                 bool is_book = false;
                 simdjson::dom::array buy_arr;
