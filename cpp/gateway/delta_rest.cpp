@@ -51,6 +51,7 @@ std::string DeltaRest::generate_signature(const std::string& method, const std::
 }
 
 bool DeltaRest::submit_order(const Order& order, const std::string& symbol) {
+    (void)symbol;
     if (api_key_.empty() || api_secret_.empty()) {
         std::cerr << "[DeltaRest] Missing API keys. Cannot submit order." << std::endl;
         return false;

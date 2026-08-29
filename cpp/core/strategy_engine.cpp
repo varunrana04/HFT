@@ -152,7 +152,7 @@ void StrategyEngine::on_trade(const Trade& trade,
         // We use spread + realized volatility to determine a dynamic trailing buffer.
         double spread_bps = 0.0;
         if (book.best_ask_price > 0 && book.best_bid_price > 0) {
-            spread_bps = (double)(book.best_ask_price - book.best_bid_price) / book.best_bid_price * 10000.0;
+            spread_bps = static_cast<double>(book.best_ask_price - book.best_bid_price) / static_cast<double>(book.best_bid_price) * 10000.0;
         }
         // Base buffer is minimum take profit bps + 2x spread + vol scaler
         double trailing_buffer_bps = strategy_.min_take_profit_bps + (spread_bps * 2.0) + (last_fv_.realized_vol * 100.0);
@@ -254,7 +254,7 @@ void StrategyEngine::on_trade(const Trade& trade,
     // Calculate dynamic threshold based on spread
     double spread_bps = 0.0;
     if (book.best_ask_price > 0 && book.best_bid_price > 0 && book.best_bid_price != INVALID_PRICE) {
-        spread_bps = (double)(book.best_ask_price - book.best_bid_price) / book.best_bid_price * 10000.0;
+        spread_bps = static_cast<double>(book.best_ask_price - book.best_bid_price) / static_cast<double>(book.best_bid_price) * 10000.0;
     }
 
     // ── HARD SPREAD CIRCUIT-BREAKER ──────────────────────────────────────────
@@ -351,7 +351,7 @@ void StrategyEngine::on_trade(const Trade& trade,
 
         // Market Impact Depth Check: Cap at 5% of Top-of-Book
         int64_t tob_qty = (entry_side == Side::BID) ? book.best_bid_qty : book.best_ask_qty;
-        int64_t max_allowed_qty = static_cast<int64_t>(tob_qty * 0.05);
+        int64_t max_allowed_qty = static_cast<int64_t>(static_cast<double>(tob_qty) * 0.05);
         if (order_qty > max_allowed_qty) {
             order_qty = max_allowed_qty; // Scale down instead of outright rejection to capture edge
         }

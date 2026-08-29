@@ -100,9 +100,9 @@ void DeltaWs::start_live_feed(hft::StrategyEngine* engine) {
                         
                         double price = 0.0;
                         double size = 0.0;
-                        trade_obj["price"].get(price);
-                        trade_obj["size"].get(size);
-                        trade_obj["buyer_role"].get(buyer_role);
+                        (void)trade_obj["price"].get(price);
+                        (void)trade_obj["size"].get(size);
+                        (void)trade_obj["buyer_role"].get(buyer_role);
                         
                         t.price = static_cast<int64_t>(price * 1e8);
                         t.quantity = static_cast<int64_t>(size * 1e8); 
@@ -144,8 +144,8 @@ void DeltaWs::start_live_feed(hft::StrategyEngine* engine) {
                             
                             std::string_view p;
                             double q = 0.0;
-                            bid_obj["limit_price"].get(p);
-                            bid_obj["size"].get(q);
+                            (void)bid_obj["limit_price"].get(p);
+                            (void)bid_obj["size"].get(q);
                             
                             latest_book_.bids[bid_idx].price = static_cast<int64_t>(std::stod(std::string(p)) * 1e8);
                             latest_book_.bids[bid_idx].quantity = static_cast<int64_t>(q * 1e8);
@@ -171,8 +171,8 @@ void DeltaWs::start_live_feed(hft::StrategyEngine* engine) {
                             
                             std::string_view p;
                             double q = 0.0;
-                            ask_obj["limit_price"].get(p);
-                            ask_obj["size"].get(q);
+                            (void)ask_obj["limit_price"].get(p);
+                            (void)ask_obj["size"].get(q);
                             
                             latest_book_.asks[ask_idx].price = static_cast<int64_t>(std::stod(std::string(p)) * 1e8);
                             latest_book_.asks[ask_idx].quantity = static_cast<int64_t>(q * 1e8);
