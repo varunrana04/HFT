@@ -149,8 +149,9 @@
                     priceSeries.update({ time: Math.floor(data.ts / 1000), value: mid });
                 }
             } catch (e) {
+                console.error('Dashboard Error:', e);
                 statusEl.className = 'px-3 py-1 rounded-full bg-red-500/20 text-red-500 text-sm font-semibold flex items-center border border-red-500/30';
-                statusEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></span> Disconnected';
+                statusEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></span> Disconnected: ' + e.message;
             }
         }
 

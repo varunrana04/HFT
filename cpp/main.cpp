@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <thread>
 #include <chrono>
+#include <cmath>
 #include <fstream>
 #include <sstream>
 #include <future>
@@ -28,6 +29,11 @@ static void write_status(double bid, double ask, double alpha,
         std::cerr << "[ERROR] Could not open " << tmp << " for writing! Permission denied?\n";
         return;
     }
+    if (std::isnan(bid) || std::isinf(bid)) bid = 0.0;
+    if (std::isnan(ask) || std::isinf(ask)) ask = 0.0;
+    if (std::isnan(alpha) || std::isinf(alpha)) alpha = 0.0;
+    if (std::isnan(pnl) || std::isinf(pnl)) pnl = 0.0;
+
     f << "{\"bid\":" << bid
       << ",\"ask\":" << ask
       << ",\"alpha\":" << alpha

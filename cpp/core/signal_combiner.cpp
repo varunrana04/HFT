@@ -159,7 +159,8 @@ bool SignalCombiner::load_model(const char* path) noexcept {
 
     // Bias is optional — if the file ends here, bias stays 0.0
     ml_weights_.bias = 0.0;
-    fread(&ml_weights_.bias, 1, sizeof(double), file);
+    size_t bias_bytes = fread(&ml_weights_.bias, 1, sizeof(double), file);
+    (void)bias_bytes; // Silence unused warning
 
     fclose(file);
     ml_weights_.loaded = true;
@@ -206,7 +207,7 @@ bool SignalCombiner::load_lgbm_model(const char* path) noexcept {
                 current_tree = LGBMTree{};
                 parsing_tree = true;
             } else if (parsing_tree && line.rfind("num_leaves=", 0) == 0) {
-                int num_leaves = std::stoi(line.substr(11));
+                // int num_leaves = std::stoi(line.substr(11));
                 // LightGBM internal nodes = num_leaves - 1
                 // Total nodes (internal + leaves) can be indexed differently.
                 // LightGBM node indices:
@@ -237,7 +238,7 @@ bool SignalCombiner::load_lgbm_model(const char* path) noexcept {
             } else if (parsing_tree && line.rfind("leaf_value=", 0) == 0) {
                 auto leaves = parse_doubles(line.substr(11));
                 // Add leaf nodes to the array and fix up indices
-                int leaf_offset = current_tree.nodes.size();
+                int leaf_offset = static_cast<int>(current_tree.nodes.size());
                 current_tree.nodes.resize(leaf_offset + leaves.size());
                 
                 for (size_t i = 0; i < leaves.size(); ++i) {

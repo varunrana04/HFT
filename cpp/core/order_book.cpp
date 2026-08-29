@@ -49,7 +49,7 @@ void OrderBook::reset() noexcept {
 DataQuality OrderBook::apply_update(const LevelUpdate& update) noexcept {
     // Build a minimal BookSnapshot for validation timestamp/sequence checks
     // We validate the update's metadata, not the full book yet
-    int64_t ref_time = now_ns();
+    // ... ref_time removed
 
     // Basic sanity: price must be positive for non-removal updates
     if (update.quantity > 0 && update.price <= 0) {

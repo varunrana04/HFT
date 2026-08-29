@@ -159,6 +159,7 @@ bool OrderManager::should_flatten() const noexcept {
 }
 
 void OrderManager::update_kill_switch(int64_t current_timestamp_ms) noexcept {
+    (void)current_timestamp_ms;
     // Left empty here - it is expected that StrategyEngine updates KillSwitch
     // directly, as it has access to open_pnl, realized_pnl, and equity.
 }

@@ -128,7 +128,7 @@ FeatureVector FeatureEngine::compute_all(const BookSnapshot& book,
     fv.realized_vol = compute_realized_vol();
     
     // VRP: Not yet implemented (requires long_vol_tracker_)
-    double long_vol = 1e-9; 
+    // ... long_vol removed 
     fv.vrp = 0.0;
 
     // 6. Stat-Arb Z-score
