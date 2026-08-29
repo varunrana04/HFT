@@ -17,6 +17,8 @@ WORKDIR /app
 
 # Copy the CMake project files
 COPY CMakeLists.txt .
+# Bust the cache to ensure Render rebuilds the engine with the Ping fix
+ENV CACHE_BUSTER=1
 COPY cpp/ cpp/
 
 # Download simdjson single-header
