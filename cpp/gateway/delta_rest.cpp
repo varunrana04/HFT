@@ -24,7 +24,10 @@ struct DeltaRest::Impl {
 };
 
 DeltaRest::DeltaRest(const std::string& api_key, const std::string& api_secret) 
-    : api_key_(api_key), api_secret_(api_secret), base_url_("https://api.delta.exchange"), impl_(std::make_unique<Impl>()) {
+    : api_key_(api_key), api_secret_(api_secret), impl_(std::make_unique<Impl>()) {
+    const char* env_url = std::getenv("DELTA_BASE_URL");
+    base_url_ = env_url ? env_url : "https://api.delta.exchange";
+    std::cout << "[DeltaRest] REST base URL: " << base_url_ << "\n";
 }
 
 DeltaRest::~DeltaRest() = default;
