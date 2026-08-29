@@ -35,8 +35,8 @@ int main() {
     // 2. Initialize Engine
     StrategyEngine engine;
     
-    // 3. Initialize Gateways
-    gateway::DeltaWs ws_feed("BTCUSDT");
+    // 3. Initialize Gateways — Delta Exchange only
+    gateway::DeltaWs ws_feed("BTCUSD");          // Delta perpetual symbol
     gateway::DeltaRest rest_client(api_key, api_secret);
 
     // 4. Connect Market Data
@@ -108,12 +108,12 @@ int main() {
             // Force 1 contract for Testnet safety if size is huge (or use computed qty if you prefer)
             o.quantity = engine.pending_order_.qty; 
             
-            std::cout << "[EXEC] Dispatching " << (o.side == Side::BID ? "BUY" : "SELL") 
+            std::cout << "[EXEC] Dispatching " << (o.side == Side::BID ? "BUY" : "SELL")
                       << " Order: Qty " << o.quantity / 1e8 << " @ " << o.price / 1e8 << "\n";
-                      
-            // Fire and forget via async, cast to void to ignore nodiscard
+
+            // Fire and forget via async; cast to void to suppress nodiscard warning
             (void)std::async(std::launch::async, [&rest_client, o]() {
-                rest_client.submit_order(o, "BTCUSDT");
+                rest_client.submit_order(o, "BTCUSD");
             });
 
             // Mark as dispatched

@@ -92,9 +92,39 @@ bool DeltaRest::submit_order(const Order& order, const std::string& symbol) {
     }
 }
 
-bool DeltaRest::cancel_order(const std::string& client_order_id, const std::string& symbol) {
-    // TODO: Implement cancel_order similarly using DELETE /v2/orders
-    return false;
+bool DeltaRest::cancel_order(const std::string& order_id, const std::string& /*symbol*/) {
+    if (api_key_.empty() || api_secret_.empty()) {
+        std::cerr << "[DeltaRest] Missing API keys. Cannot cancel order." << std::endl;
+        return false;
+    }
+
+    std::string endpoint = "/v2/orders/" + order_id;
+    std::string url = base_url_ + endpoint;
+
+    auto now = std::chrono::system_clock::now();
+    std::string timestamp = std::to_string(
+        std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count());
+
+    // Delta DELETE /v2/orders/{id} — no request body
+    std::string payload = "";
+    std::string signature = generate_signature("DELETE", endpoint, payload, timestamp);
+
+    ix::HttpRequestArgsPtr args = impl_->httpClient.createRequest();
+    args->extraHeaders["api-key"]      = api_key_;
+    args->extraHeaders["signature"]    = signature;
+    args->extraHeaders["timestamp"]    = timestamp;
+    args->extraHeaders["Content-Type"] = "application/json";
+
+    auto response = impl_->httpClient.Delete(url, args);
+
+    if (response->statusCode == 200 || response->statusCode == 204) {
+        std::cout << "[DeltaRest] Order " << order_id << " cancelled successfully." << std::endl;
+        return true;
+    } else {
+        std::cerr << "[DeltaRest] Cancel failed! Status: " << response->statusCode
+                  << " Body: " << response->body << std::endl;
+        return false;
+    }
 }
 
 } // namespace gateway

@@ -16,7 +16,7 @@ namespace gateway {
 
 class DeltaWs : public net::INetworkRx {
 public:
-    DeltaWs(const std::string& symbol = "BTCUSDT");
+    DeltaWs(const std::string& symbol = "BTCUSD");
     ~DeltaWs() override;
 
     bool initialize() override;

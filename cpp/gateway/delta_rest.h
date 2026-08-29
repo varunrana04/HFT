@@ -16,12 +16,12 @@ public:
     /**
      * Submit an order via POST /v2/orders
      */
-    bool submit_order(const Order& order, const std::string& symbol = "BTCUSDT");
+    bool submit_order(const Order& order, const std::string& symbol = "BTCUSD");
 
     /**
-     * Cancel an order via DELETE /v2/orders
+     * Cancel an order via DELETE /v2/orders/{id}
      */
-    bool cancel_order(const std::string& client_order_id, const std::string& symbol = "BTCUSDT");
+    bool cancel_order(const std::string& order_id, const std::string& symbol = "BTCUSD");
 
 private:
     std::string api_key_;
