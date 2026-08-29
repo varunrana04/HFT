@@ -66,9 +66,13 @@
     </div>
 
     <script>
-        // Initialize Lightweight Charts
-        const chartContainer = document.getElementById('price-chart');
-        const chart = LightweightCharts.createChart(chartContainer, {
+        const statusEl = document.getElementById('connection-status');
+        statusEl.innerHTML = 'Starting JS...';
+
+        try {
+            // Initialize Lightweight Charts
+            const chartContainer = document.getElementById('price-chart');
+            const chart = LightweightCharts.createChart(chartContainer, {
             layout: {
                 background: { type: 'solid', color: 'transparent' },
                 textColor: '#d1d4dc',
@@ -102,9 +106,13 @@
         window.addEventListener('resize', () => {
             chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
         });
+        } catch (initErr) {
+            console.error("Initialization error:", initErr);
+            statusEl.innerHTML = 'Init Error: ' + initErr.message;
+        }
 
-        // ── Poll /status.json every 500ms (written by C++ engine) ──
-        const statusEl = document.getElementById('connection-status');
+        // We already define statusEl above, so remove the duplicate declaration here
+        // const statusEl = document.getElementById('connection-status');
 
         async function fetchStatus() {
             try {
@@ -146,7 +154,11 @@
 
                 // Update chart
                 if (mid > 0) {
-                    priceSeries.update({ time: Math.floor(data.ts / 1000), value: mid });
+                    try {
+                        priceSeries.update({ time: Math.floor(data.ts / 1000), value: mid });
+                    } catch (chartErr) {
+                        console.warn("Chart update skipped:", chartErr);
+                    }
                 }
             } catch (e) {
                 console.error('Dashboard Error:', e);
