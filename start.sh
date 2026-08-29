@@ -12,7 +12,7 @@ if [ -z "$DELTA_API_KEY" ] || [ -z "$DELTA_API_SECRET" ]; then
     exit 1
 fi
 
-echo "Starting C++ HFT Engine on port 8081..."
+echo "Starting C++ HFT Engine in background..."
 ./hft_engine_live &
 ENGINE_PID=$!
 
