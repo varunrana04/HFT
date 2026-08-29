@@ -104,8 +104,8 @@ void DeltaWs::start_live_feed(hft::StrategyEngine* engine) {
                         trade_obj["size"].get(size);
                         trade_obj["buyer_role"].get(buyer_role);
                         
-                        t.price = price * 1e8;
-                        t.quantity = size * 1e8; 
+                        t.price = static_cast<int64_t>(price * 1e8);
+                        t.quantity = static_cast<int64_t>(size * 1e8); 
                         t.side = (buyer_role == "taker") ? Side::BID : Side::ASK;
                         
                         uint64_t ts = 0;
@@ -147,8 +147,8 @@ void DeltaWs::start_live_feed(hft::StrategyEngine* engine) {
                             bid_obj["limit_price"].get(p);
                             bid_obj["size"].get(q);
                             
-                            latest_book_.bids[bid_idx].price = std::stod(std::string(p)) * 1e8;
-                            latest_book_.bids[bid_idx].quantity = q * 1e8;
+                            latest_book_.bids[bid_idx].price = static_cast<int64_t>(std::stod(std::string(p)) * 1e8);
+                            latest_book_.bids[bid_idx].quantity = static_cast<int64_t>(q * 1e8);
                             bid_idx++;
                         }
                         latest_book_.bid_count = bid_idx;
@@ -174,8 +174,8 @@ void DeltaWs::start_live_feed(hft::StrategyEngine* engine) {
                             ask_obj["limit_price"].get(p);
                             ask_obj["size"].get(q);
                             
-                            latest_book_.asks[ask_idx].price = std::stod(std::string(p)) * 1e8;
-                            latest_book_.asks[ask_idx].quantity = q * 1e8;
+                            latest_book_.asks[ask_idx].price = static_cast<int64_t>(std::stod(std::string(p)) * 1e8);
+                            latest_book_.asks[ask_idx].quantity = static_cast<int64_t>(q * 1e8);
                             ask_idx++;
                         }
                         latest_book_.ask_count = ask_idx;

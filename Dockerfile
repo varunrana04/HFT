@@ -55,6 +55,7 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy the dashboard files to NGINX web root
 COPY live_dashboard/ /var/www/html/
+RUN chmod -R 777 /var/www/html/
 
 # Copy entrypoint script
 COPY start.sh .

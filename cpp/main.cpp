@@ -24,7 +24,10 @@ static void write_status(double bid, double ask, double alpha,
     const char* path  = "/var/www/html/status.json";
     const char* tmp   = "/var/www/html/status.json.tmp";
     std::ofstream f(tmp);
-    if (!f) return;
+    if (!f) {
+        std::cerr << "[ERROR] Could not open " << tmp << " for writing! Permission denied?\n";
+        return;
+    }
     f << "{\"bid\":" << bid
       << ",\"ask\":" << ask
       << ",\"alpha\":" << alpha
