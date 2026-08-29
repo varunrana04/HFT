@@ -49,6 +49,9 @@ FetchContent_Declare(
     GIT_TAG        v11.4.4
 )
 FetchContent_MakeAvailable(ixwebsocket)
+
+# Silence all warnings for the third-party ixwebsocket library so they don't clutter the build
+set_target_properties(ixwebsocket PROPERTIES COMPILE_FLAGS "-w")
 message(STATUS "[hft_core] IXWebSocket client: ENABLED (TLS ON)")
 
 # ─── Core Engine Library ───────────────────────────────────────

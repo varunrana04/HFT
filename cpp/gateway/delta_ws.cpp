@@ -100,9 +100,10 @@ void DeltaWs::start_live_feed(hft::StrategyEngine* engine) {
                         
                         double price = 0.0;
                         double size = 0.0;
-                        (void)trade_obj["price"].get(price);
-                        (void)trade_obj["size"].get(size);
-                        (void)trade_obj["buyer_role"].get(buyer_role);
+                        auto e1 = trade_obj["price"].get(price);
+                        auto e2 = trade_obj["size"].get(size);
+                        auto e3 = trade_obj["buyer_role"].get(buyer_role);
+                        (void)e1; (void)e2; (void)e3;
                         
                         t.price = static_cast<int64_t>(price * 1e8);
                         t.quantity = static_cast<int64_t>(size * 1e8); 
@@ -144,8 +145,9 @@ void DeltaWs::start_live_feed(hft::StrategyEngine* engine) {
                             
                             std::string_view p;
                             double q = 0.0;
-                            (void)bid_obj["limit_price"].get(p);
-                            (void)bid_obj["size"].get(q);
+                            auto eb1 = bid_obj["limit_price"].get(p);
+                            auto eb2 = bid_obj["size"].get(q);
+                            (void)eb1; (void)eb2;
                             
                             latest_book_.bids[bid_idx].price = static_cast<int64_t>(std::stod(std::string(p)) * 1e8);
                             latest_book_.bids[bid_idx].quantity = static_cast<int64_t>(q * 1e8);
@@ -171,8 +173,9 @@ void DeltaWs::start_live_feed(hft::StrategyEngine* engine) {
                             
                             std::string_view p;
                             double q = 0.0;
-                            (void)ask_obj["limit_price"].get(p);
-                            (void)ask_obj["size"].get(q);
+                            auto ea1 = ask_obj["limit_price"].get(p);
+                            auto ea2 = ask_obj["size"].get(q);
+                            (void)ea1; (void)ea2;
                             
                             latest_book_.asks[ask_idx].price = static_cast<int64_t>(std::stod(std::string(p)) * 1e8);
                             latest_book_.asks[ask_idx].quantity = static_cast<int64_t>(q * 1e8);

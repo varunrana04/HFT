@@ -38,8 +38,8 @@ std::string DeltaRest::generate_signature(const std::string& method, const std::
     unsigned char hash[EVP_MAX_MD_SIZE];
     unsigned int hash_len;
     
-    HMAC(EVP_sha256(), api_secret_.c_str(), api_secret_.length(),
-         reinterpret_cast<const unsigned char*>(data.c_str()), data.length(),
+    HMAC(EVP_sha256(), api_secret_.c_str(), static_cast<int>(api_secret_.length()),
+         reinterpret_cast<const unsigned char*>(data.c_str()), static_cast<int>(data.length()),
          hash, &hash_len);
          
     std::stringstream ss;
