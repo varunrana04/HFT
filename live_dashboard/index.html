@@ -103,71 +103,60 @@
             chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
         });
 
-        // WebSocket Connection
-        let ws;
-        function connect() {
-            let wsUrl;
-            if (window.location.protocol === 'file:') {
-                wsUrl = 'ws://localhost:8081'; 
-            } else {
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                wsUrl = `${protocol}//${window.location.host}/ws`; 
-            }
-            ws = new WebSocket(wsUrl);
-            const statusEl = document.getElementById('connection-status');
-            
-            ws.onopen = () => {
+        // ── Poll /status.json every 500ms (written by C++ engine) ──
+        const statusEl = document.getElementById('connection-status');
+
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/status.json?t=' + Date.now());
+                if (!res.ok) throw new Error('not ok');
+                const data = await res.json();
+
+                // Mark as live
                 statusEl.className = 'px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-500 text-sm font-semibold flex items-center border border-emerald-500/30';
                 statusEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500 mr-2 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span> Live';
-            };
 
-            ws.onclose = () => {
-                statusEl.className = 'px-3 py-1 rounded-full bg-red-500/20 text-red-500 text-sm font-semibold flex items-center border border-red-500/30';
-                statusEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></span> Disconnected';
-                setTimeout(connect, 1000); // Reconnect
-            };
+                const mid    = (data.bid + data.ask) / 2;
+                const spread = data.bid > 0 ? ((data.ask - data.bid) / data.bid * 10000).toFixed(2) : '---';
 
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                const now = Date.now() / 1000; // Lightweight charts uses unix timestamp in seconds
-                
-                const mid = (data.bid + data.ask) / 2;
-                const spread = ((data.ask - data.bid) / data.bid * 10000).toFixed(2);
-                
-                // Update DOM Metrics
-                document.getElementById('metric-price').innerText = mid.toFixed(1);
+                document.getElementById('metric-price').innerText  = mid > 0 ? mid.toFixed(1) : '---';
                 document.getElementById('metric-spread').innerText = spread;
-                
+
                 const alphaEl = document.getElementById('metric-alpha');
                 alphaEl.innerText = data.alpha.toFixed(4);
-                if (data.alpha > 0.05) alphaEl.className = 'text-3xl font-mono font-bold mt-1 text-emerald-400';
+                if (data.alpha > 0.05)       alphaEl.className = 'text-3xl font-mono font-bold mt-1 text-emerald-400';
                 else if (data.alpha < -0.05) alphaEl.className = 'text-3xl font-mono font-bold mt-1 text-red-400';
-                else alphaEl.className = 'text-3xl font-mono font-bold mt-1 text-gray-300';
-                
-                // Animate Alpha Bar (-1 to 1 mapped to 0% to 100%)
+                else                         alphaEl.className = 'text-3xl font-mono font-bold mt-1 text-gray-300';
+
                 const alphaPercent = Math.max(0, Math.min(100, ((data.alpha + 1) / 2) * 100));
                 const bar = document.getElementById('alpha-bar');
                 bar.style.width = `${alphaPercent}%`;
-                bar.className = `h-full transition-all duration-100 ${data.alpha > 0.05 ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : (data.alpha < -0.05 ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-gray-500')}`;
+                bar.className = `h-full transition-all duration-100 ${data.alpha > 0.05
+                    ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'
+                    : (data.alpha < -0.05 ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-gray-500')}`;
 
-                const posEl = document.getElementById('metric-pos');
+                const posEl  = document.getElementById('metric-pos');
                 const posStr = (data.pos / 100000000).toFixed(4);
-                posEl.innerText = posStr;
-                posEl.className = `text-3xl font-mono font-bold mt-1 ${data.pos > 0 ? 'text-blue-400' : (data.pos < 0 ? 'text-purple-400' : 'text-white')}`;
+                posEl.innerText   = posStr;
+                posEl.className   = `text-3xl font-mono font-bold mt-1 ${data.pos > 0 ? 'text-blue-400' : (data.pos < 0 ? 'text-purple-400' : 'text-white')}`;
 
                 const pnlEl = document.getElementById('metric-pnl');
-                pnlEl.innerText = '$' + data.pnl.toFixed(2);
-                pnlEl.className = `text-3xl font-mono font-bold mt-1 ${data.pnl >= 0 ? 'text-emerald-500 shadow-emerald-500/20' : 'text-red-500 shadow-red-500/20'}`;
+                pnlEl.innerText   = '$' + data.pnl.toFixed(2);
+                pnlEl.className   = `text-3xl font-mono font-bold mt-1 ${data.pnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`;
 
-                // Update Chart
-                priceSeries.update({
-                    time: now,
-                    value: mid
-                });
-            };
+                // Update chart
+                if (mid > 0) {
+                    priceSeries.update({ time: Math.floor(data.ts / 1000), value: mid });
+                }
+            } catch (e) {
+                statusEl.className = 'px-3 py-1 rounded-full bg-red-500/20 text-red-500 text-sm font-semibold flex items-center border border-red-500/30';
+                statusEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></span> Disconnected';
+            }
         }
 
-        connect();
+        // Start polling immediately, then every 500ms
+        fetchStatus();
+        setInterval(fetchStatus, 500);
     </script>
 </body>
 </html>
