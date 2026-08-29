@@ -56,12 +56,12 @@
     </div>
 
     <!-- Charts Area -->
-    <div class="flex-1 grid grid-cols-1 gap-6 min-h-0">
-        <div class="glass-panel rounded-xl shadow-lg p-1 flex flex-col h-full relative">
+    <div class="flex-1 grid grid-cols-1 gap-6 min-h-0" style="min-height: 400px;">
+        <div class="glass-panel rounded-xl shadow-lg p-1 flex flex-col h-full relative w-full">
             <div class="absolute top-4 left-6 z-10 pointer-events-none">
                 <h3 class="text-white font-semibold shadow-sm">Microprice & Quotes</h3>
             </div>
-            <div id="price-chart" class="flex-1 w-full rounded-lg overflow-hidden"></div>
+            <div id="price-chart" class="flex-1 w-full relative rounded-lg overflow-hidden" style="min-height: 350px;"></div>
         </div>
     </div>
 
@@ -162,15 +162,16 @@
                     try {
                         let newTime = Math.floor(data.ts / 1000);
                         
-                        // Ensure strictly increasing time to prevent Lightweight Charts crash
+                        // Ensure strictly increasing time
                         if (typeof window.lastChartTime !== 'undefined') {
                             if (newTime < window.lastChartTime) {
-                                newTime = window.lastChartTime; // clamp to last time
+                                newTime = window.lastChartTime; 
                             }
                         }
                         
                         priceSeries.update({ time: newTime, value: mid });
                         window.lastChartTime = newTime;
+                        chart.timeScale().fitContent();
                     } catch (chartErr) {
                         console.warn("Chart update skipped:", chartErr);
                     }
