@@ -37,48 +37,7 @@ if(HFT_USE_DPDK)
     endif()
 endif()
 
-# ─── Core Engine Library ───────────────────────────────────────
-# Check if simdjson.cpp exists (it will inside Docker)
-if(EXISTS "/usr/local/include/simdjson/simdjson.cpp")
-    set(SIMDJSON_SRC "/usr/local/include/simdjson/simdjson.cpp")
-else()
-    set(SIMDJSON_SRC "") # Fallback for local IDE parsing
-endif()
-
-add_library(hft_core STATIC
-
-    cpp/core/market_data.cpp
-    cpp/core/order_book.cpp
-    cpp/core/feature_engine.cpp
-    cpp/core/signal_combiner.cpp
-    cpp/core/kill_switch.cpp
-
-    cpp/core/order_manager.cpp
-    cpp/core/data_validator.cpp
-    cpp/core/strategy_engine.cpp
-    cpp/net/dpdk_rx.cpp
-    cpp/net/dpdk_tx.cpp
-    cpp/gateway/binance_ws.cpp
-    cpp/gateway/delta_ws.cpp
-    cpp/gateway/delta_rest.cpp
-    ${SIMDJSON_SRC}
-)
-
-find_package(OpenSSL REQUIRED)
-target_include_directories(hft_core PUBLIC cpp/core cpp/net cpp/gateway ${OPENSSL_INCLUDE_DIR})
-target_link_libraries(hft_core PUBLIC ixwebsocket ${OPENSSL_LIBRARIES})
-set_target_properties(hft_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
-
-
-# Find uWebSockets dependencies (for server, if we needed it)
-find_library(USOCKETS_LIB uSockets /usr/local/lib)
-if(USOCKETS_LIB)
-    target_link_libraries(hft_core PUBLIC ${USOCKETS_LIB} z ssl crypto)
-    message(STATUS "[hft_core] uWebSockets gateway: ENABLED")
-endif()
-
-# ─── IXWebSocket (For Binance C++ Client) ────────────────────────
+# ─── IXWebSocket (fetched BEFORE hft_core so the target exists at link time) ─
 include(FetchContent)
 set(USE_TLS ON CACHE BOOL "IXWebSocket use TLS" FORCE)
 set(USE_OPEN_SSL ON CACHE BOOL "IXWebSocket use OpenSSL" FORCE)
@@ -90,8 +49,49 @@ FetchContent_Declare(
     GIT_TAG        v11.4.4
 )
 FetchContent_MakeAvailable(ixwebsocket)
-target_link_libraries(hft_core PUBLIC ixwebsocket)
 message(STATUS "[hft_core] IXWebSocket client: ENABLED (TLS ON)")
+
+# ─── Core Engine Library ───────────────────────────────────────
+# Check if simdjson.cpp exists (it will inside Docker)
+if(EXISTS "/usr/local/include/simdjson/simdjson.cpp")
+    set(SIMDJSON_SRC "/usr/local/include/simdjson/simdjson.cpp")
+else()
+    set(SIMDJSON_SRC "") # Fallback for local IDE parsing
+endif()
+
+find_package(OpenSSL REQUIRED)
+
+add_library(hft_core STATIC
+    cpp/core/market_data.cpp
+    cpp/core/order_book.cpp
+    cpp/core/feature_engine.cpp
+    cpp/core/signal_combiner.cpp
+    cpp/core/kill_switch.cpp
+    cpp/core/order_manager.cpp
+    cpp/core/data_validator.cpp
+    cpp/core/strategy_engine.cpp
+    cpp/net/dpdk_rx.cpp
+    cpp/net/dpdk_tx.cpp
+    cpp/gateway/binance_ws.cpp
+    cpp/gateway/delta_ws.cpp
+    cpp/gateway/delta_rest.cpp
+    ${SIMDJSON_SRC}
+)
+
+target_include_directories(hft_core PUBLIC
+    cpp/core cpp/net cpp/gateway
+    /usr/local/include
+    ${OPENSSL_INCLUDE_DIR}
+)
+target_link_libraries(hft_core PUBLIC ixwebsocket ${OPENSSL_LIBRARIES})
+set_target_properties(hft_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# Find uWebSockets dependencies (optional)
+find_library(USOCKETS_LIB uSockets /usr/local/lib)
+if(USOCKETS_LIB)
+    target_link_libraries(hft_core PUBLIC ${USOCKETS_LIB} z ssl crypto)
+    message(STATUS "[hft_core] uWebSockets gateway: ENABLED")
+endif()
 
 if(HFT_USE_DPDK)
     target_compile_definitions(hft_core PUBLIC HFT_USE_DPDK)

@@ -24,8 +24,14 @@ RUN mkdir -p /usr/local/include/simdjson && \
     wget -O /usr/local/include/simdjson/simdjson.h https://raw.githubusercontent.com/simdjson/simdjson/master/singleheader/simdjson.h && \
     wget -O /usr/local/include/simdjson/simdjson.cpp https://raw.githubusercontent.com/simdjson/simdjson/master/singleheader/simdjson.cpp
 
-# Build the C++ engine (using -j1 to prevent OOM on Render Free Tier)
-RUN mkdir build && cd build && cmake .. && make -j1 hft_engine_live
+# Build the C++ engine (disable benchmarks/python bindings, -j1 for OOM safety)
+RUN mkdir build && cd build && \
+    cmake .. \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DHFT_BUILD_BENCHMARKS=OFF \
+      -DHFT_BUILD_PYTHON=OFF \
+      -DHFT_BUILD_TESTS=OFF && \
+    make -j1 hft_engine_live
 
 # ── Runtime Stage ────────────────────────────────────────────────────────────
 FROM ubuntu:22.04
