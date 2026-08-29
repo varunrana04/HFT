@@ -16,10 +16,13 @@ namespace gateway {
 struct DeltaWs::Impl {
     simdjson::dom::parser parser;
     ix::WebSocket webSocket;
-    std::string ws_url = "wss://socket.delta.exchange";
+    // Read WS URL from env, fallback to global production endpoint
+    std::string ws_url;
     
     Impl(const std::string& symbol) {
         (void)symbol;
+        const char* env_url = std::getenv("DELTA_WS_URL");
+        ws_url = env_url ? env_url : "wss://socket.delta.exchange";
     }
 };
 

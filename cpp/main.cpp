@@ -36,7 +36,11 @@ int main() {
     StrategyEngine engine;
     
     // 3. Initialize Gateways — Delta Exchange only
-    gateway::DeltaWs ws_feed("BTCUSD");          // Delta perpetual symbol
+    const char* sym_env = std::getenv("DELTA_SYMBOL");
+    std::string delta_symbol = sym_env ? sym_env : "BTCUSD";
+    std::cout << "[INFO] Trading symbol: " << delta_symbol << "\n";
+
+    gateway::DeltaWs ws_feed(delta_symbol);
     gateway::DeltaRest rest_client(api_key, api_secret);
 
     // 4. Connect Market Data
