@@ -102,10 +102,15 @@
             crosshairMarkerVisible: true,
         });
 
-        // Handle Resize
-        window.addEventListener('resize', () => {
-            chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
+        // Handle Resize using ResizeObserver to ensure it sizes correctly after CSS layout
+        const ro = new ResizeObserver(entries => {
+            if (entries.length === 0 || entries[0].target !== chartContainer) return;
+            const newRect = entries[0].contentRect;
+            if (newRect.width > 0 && newRect.height > 0) {
+                chart.resize(newRect.width, newRect.height);
+            }
         });
+        ro.observe(chartContainer);
         } catch (initErr) {
             console.error("Initialization error:", initErr);
             statusEl.innerHTML = 'Init Error: ' + initErr.message;
@@ -155,7 +160,17 @@
                 // Update chart
                 if (mid > 0) {
                     try {
-                        priceSeries.update({ time: Math.floor(data.ts / 1000), value: mid });
+                        let newTime = Math.floor(data.ts / 1000);
+                        
+                        // Ensure strictly increasing time to prevent Lightweight Charts crash
+                        if (typeof window.lastChartTime !== 'undefined') {
+                            if (newTime < window.lastChartTime) {
+                                newTime = window.lastChartTime; // clamp to last time
+                            }
+                        }
+                        
+                        priceSeries.update({ time: newTime, value: mid });
+                        window.lastChartTime = newTime;
                     } catch (chartErr) {
                         console.warn("Chart update skipped:", chartErr);
                     }
