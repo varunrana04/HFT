@@ -53,8 +53,9 @@ int main() {
         csv_log << "timestamp_ns,best_bid,best_ask,spread_bps,alpha,position,pnl\n";
     }
 
-    // 6. Initialize Dashboard Server
-    ix::WebSocketServer dashboard_server(8081, "0.0.0.0");
+    // 6. Initialize Dashboard Server — bind to localhost only so Render
+    //    cannot probe it directly. NGINX proxies /ws → 127.0.0.1:8081.
+    ix::WebSocketServer dashboard_server(8081, "127.0.0.1");
     dashboard_server.setOnClientMessageCallback(
         [](std::shared_ptr<ix::ConnectionState> connectionState, ix::WebSocket& webSocket, const ix::WebSocketMessagePtr& msg) {
             // Ignore incoming messages from dashboard clients
