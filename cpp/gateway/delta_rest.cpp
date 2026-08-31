@@ -136,5 +136,38 @@ bool DeltaRest::cancel_order(const std::string& order_id, const std::string& /*s
     }
 }
 
+bool DeltaRest::cancel_all_orders(const std::string& /*symbol*/) {
+    if (api_key_.empty() || api_secret_.empty()) {
+        std::cerr << "[DeltaRest] Missing API keys. Cannot cancel all orders." << std::endl;
+        return false;
+    }
+
+    std::string endpoint = "/v2/orders/all?product_id=" + std::to_string(product_id_);
+    std::string url = base_url_ + endpoint;
+
+    auto now = std::chrono::system_clock::now();
+    std::string timestamp = std::to_string(
+        std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count());
+
+    std::string payload = ""; // Empty payload for DELETE
+    std::string signature = generate_signature("DELETE", endpoint, payload, timestamp);
+
+    ix::HttpRequestArgsPtr args = impl_->httpClient.createRequest();
+    args->extraHeaders["api-key"]      = api_key_;
+    args->extraHeaders["signature"]    = signature;
+    args->extraHeaders["timestamp"]    = timestamp;
+    args->extraHeaders["Content-Type"] = "application/json";
+
+    auto response = impl_->httpClient.Delete(url, args);
+
+    if (response->statusCode == 200 || response->statusCode == 204) {
+        return true;
+    } else {
+        std::cerr << "[DeltaRest] Cancel All failed! Status: " << response->statusCode
+                  << " Body: " << response->body << std::endl;
+        return false;
+    }
+}
+
 } // namespace gateway
 } // namespace hft

@@ -148,7 +148,8 @@ int main() {
                       << " Qty " << static_cast<double>(o.quantity) / 1e8
                       << " @ "   << static_cast<double>(o.price)    / 1e8 << "\n";
 
-            (void)std::async(std::launch::async, [&rest_client, o, &delta_symbol]() {
+            (void)std::async(std::launch::async, [&rest_client, o, delta_symbol]() {
+                rest_client.cancel_all_orders(delta_symbol);
                 rest_client.submit_order(o, delta_symbol);
             });
 
