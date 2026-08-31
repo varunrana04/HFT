@@ -633,6 +633,13 @@ int64_t StrategyEngine::compute_order_size(
     double notional = portfolio_value * size_pct;
     double qty      = notional / price;
 
+    // HARD LIMIT: Delta Exchange testnet caps orders at 3817 contracts. 
+    // Assuming 1 contract = 0.001 BTC, the absolute limit is 3.817 BTC.
+    // We cap it at 3.8 BTC just to be safe.
+    if (qty > 3.8) {
+        qty = 3.8;
+    }
+
     return qty_to_fixed(qty);
 }
 

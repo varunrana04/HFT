@@ -70,7 +70,7 @@ struct StrategyConfig {
     double  max_spread_bps_cutoff  = 3.5;
 
     double  min_take_profit_bps   = 5.0;   ///< Minimum take profit bps required before alpha decay exit
-    double  max_position_pct      = 0.15;   ///< Unified Max Position Size as % of portfolio
+    double  max_position_pct      = 0.02;   ///< Unified Max Position Size as % of portfolio (capped for 3817 contract limit)
     double  initial_capital       = 10000000.0; ///< Starting capital ($10,000,000 Testnet Capital)
     double  maker_fee_pct         = -0.00005; ///< Maker fee (-0.5 bps institutional rebate)
     double  taker_fee_pct         = 0.00015;  ///< Taker fee (1.5 bps institutional taker)
