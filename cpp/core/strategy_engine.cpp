@@ -366,6 +366,7 @@ void StrategyEngine::on_trade(const Trade& trade,
         if (entry_order.state != OrderState::REJECTED) {
             if (!pending_order_.active || pending_order_.price != exec_price || pending_order_.side != entry_side) {
                 pending_order_.active = true;
+                pending_order_.dispatched_to_rest = false;
                 pending_order_.side = entry_side;
                 pending_order_.price = exec_price;
                 pending_order_.qty = order_qty;

@@ -125,6 +125,8 @@ void DpdkRx::poll_loop(
     running_ = true;
 
 #ifndef HFT_USE_DPDK
+    (void)on_trade_callback;
+    (void)on_book_callback;
     std::cout << "[INFO] Mock DPDK PMD Loop running on core " << core_id_ << "...\n";
     while (running_) {
         // Yield heavily in mock mode to not fry CPU

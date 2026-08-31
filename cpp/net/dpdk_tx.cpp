@@ -27,6 +27,8 @@ bool DpdkTx::initialize() {
 bool DpdkTx::send_order(const uint8_t* payload, size_t size) {
 #ifndef HFT_USE_DPDK
     // Mock TX
+    (void)payload;
+    (void)size;
     return true;
 #else
     if (unlikely(tx_pool_ == nullptr)) return false;

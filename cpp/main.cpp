@@ -120,7 +120,7 @@ int main() {
         write_status(bid, ask, fv.combined_alpha, pos, pnl);
 
         // Order Execution Dispatcher
-        if (engine.pending_order_.active) {
+        if (engine.pending_order_.active && !engine.pending_order_.dispatched_to_rest) {
             Order o{};
             o.side     = engine.pending_order_.side;
             o.price    = engine.pending_order_.price;
@@ -135,7 +135,7 @@ int main() {
                 rest_client.submit_order(o, delta_symbol);
             });
 
-            engine.pending_order_.active = false;
+            engine.pending_order_.dispatched_to_rest = true;
         }
 
         // Heartbeat every 5 s

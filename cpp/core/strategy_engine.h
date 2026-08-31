@@ -265,9 +265,9 @@ public:
     /// Ticks processed so far (useful for monitoring warm-up progress)
     [[nodiscard]] int64_t tick_count() const noexcept { return tick_count_; }
 
-    // ── Open Order State ──
     struct PendingOrder {
         bool active = false;
+        bool dispatched_to_rest = false;
         Side side = Side::NONE;
         int64_t price = 0;
         int64_t qty = 0;
