@@ -145,8 +145,12 @@ void StrategyEngine::on_trade(const Trade& trade,
             position_peak_unrealized_pnl_ = unrl_pnl;
         }
 
-        // Hard Stop-Loss: If open position drags account down by > 2%
-        bool hard_stop = (current_eq > 0.0 && (unrl_pnl / current_eq) < -0.02);
+        double notional = std::abs(fixed_to_qty(position_)) * fixed_to_price(last_mid_price_);
+        
+        // Hard Stop-Loss: Vol-scaled BPS stop on notional
+        double stop_bps = strategy_.base_stop_bps + (last_fv_.realized_vol * strategy_.stop_vol_multiplier);
+        double stop_pnl = -(stop_bps / 10000.0) * notional;
+        bool hard_stop = (notional > 0.0 && unrl_pnl < stop_pnl);
         
         // Volatility-Adjusted Trailing Stop
         // We use spread + realized volatility to determine a dynamic trailing buffer.
@@ -155,9 +159,8 @@ void StrategyEngine::on_trade(const Trade& trade,
             spread_bps = static_cast<double>(book.best_ask_price - book.best_bid_price) / static_cast<double>(book.best_bid_price) * 10000.0;
         }
         // Base buffer is minimum take profit bps + 2x spread + vol scaler
-        double trailing_buffer_bps = strategy_.min_take_profit_bps + (spread_bps * 2.0) + (last_fv_.realized_vol * 100.0);
+        double trailing_buffer_bps = strategy_.min_take_profit_bps + (spread_bps * 2.0) + (last_fv_.realized_vol * strategy_.trailing_stop_vol_multiplier);
         
-        double notional = std::abs(fixed_to_qty(position_)) * fixed_to_price(last_mid_price_);
         double trailing_buffer_pnl = (trailing_buffer_bps / 10000.0) * notional;
         
         // Trigger trailing stop if we reached a decent profit peak, and gave back the buffer
@@ -277,6 +280,15 @@ void StrategyEngine::on_trade(const Trade& trade,
         // Direction
         Side entry_side = signal_buy ? Side::BID : Side::ASK;
 
+        // ── DON'T PYRAMID INTO A LOSER ──
+        if (position_ != 0) {
+            bool same_direction = (position_ > 0 && entry_side == Side::BID) ||
+                                  (position_ < 0 && entry_side == Side::ASK);
+            if (same_direction && unrealized_pnl() < 0.0) {
+                return;  // Hold size flat until this leg is flat or green
+            }
+        }
+
         // Check: don't add to a position in the same direction
         // if we're already at size, or in opposite direction if shorts
         // are disabled
@@ -301,20 +313,29 @@ void StrategyEngine::on_trade(const Trade& trade,
         double lambda_intensity = std::tanh(last_fv_.hawkes_intensity);
         
         // Base spread (1 bps) + volatility expansion
-        double base_spread_bps = 1.0 + (last_fv_.realized_vol * 10.0); 
+        double base_spread_bps = 1.0 + (last_fv_.realized_vol * strategy_.entry_spread_vol_multiplier); 
         
         // Widen spread in high toxicity regimes
         if (static_cast<uint8_t>(last_fv_.regime) == static_cast<uint8_t>(Regime::HIGH_TOXICITY) || lambda_intensity > 0.6) {
             base_spread_bps += 2.0; 
         }
 
-        double optimal_spread = fixed_to_price(last_mid_price_) * (base_spread_bps / 10000.0); 
+        // Micro-price Calculation (OBI weighted)
+        double micro_price = fixed_to_price(last_mid_price_); // fallback
+        if (book.best_bid_qty > 0 && book.best_ask_qty > 0) {
+            double imb = static_cast<double>(book.best_bid_qty) / static_cast<double>(book.best_bid_qty + book.best_ask_qty);
+            double bid_p = fixed_to_price(book.best_bid_price);
+            double ask_p = fixed_to_price(book.best_ask_price);
+            micro_price = (bid_p * (1.0 - imb)) + (ask_p * imb);
+        }
+
+        double optimal_spread = micro_price * (base_spread_bps / 10000.0); 
         
         // Skew reservation price using LightGBM alpha. 
         // If alpha > 0, we expect price to rise, so we shift reservation up to buy higher and sell higher.
         // alpha is in [-1, 1], so we map it to a max skew of 2 bps.
-        double max_skew = fixed_to_price(last_mid_price_) * (2.0 / 10000.0);
-        double reservation_price = fixed_to_price(last_mid_price_) + (alpha * max_skew);
+        double max_skew = micro_price * (2.0 / 10000.0);
+        double reservation_price = micro_price + (alpha * max_skew);
         
         int64_t lgbm_bid = price_to_fixed(reservation_price - optimal_spread / 2.0);
         int64_t lgbm_ask = price_to_fixed(reservation_price + optimal_spread / 2.0);

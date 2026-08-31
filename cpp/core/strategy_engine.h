@@ -78,6 +78,12 @@ struct StrategyConfig {
     bool    allow_short           = true;   ///< Allow short selling
     int64_t execution_cooldown_ns = 1000000000LL; ///< 1 second execution cooldown
     
+    // Explicit Stop-Loss & Spread Multipliers
+    double  base_stop_bps               = 15.0; ///< Base unconditional stop-loss in bps
+    double  stop_vol_multiplier         = 25.0; ///< Vol scaling for stop-loss distance
+    double  entry_spread_vol_multiplier = 25.0; ///< Vol scaling for entry spread widening
+    double  trailing_stop_vol_multiplier= 50.0; ///< Vol scaling for trailing stop buffer
+    
     // Avellaneda-Stoikov Inventory Model Parameters
     double  gamma_by_regime[4]    = {0.1, 0.5, 0.1, 0.2}; ///< Risk aversion by Regime (NORMAL, HIGH_TOXICITY, LOW_LIQUIDITY, TRENDING)
     double  k_arrival_rate        = 12.9;   ///< Order arrival intensity k (First-pass k, full-session average. Rolling estimate deferred to backlog)
