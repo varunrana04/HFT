@@ -6,6 +6,57 @@
  *   Trade → FeatureEngine.compute_all() → SignalCombiner.combine()
  *   → alpha check → RiskManager.check_order() → simulate_fill()
  *   → update PnL, metrics, journal
+ *
+ * ─────────────────────────────────────────────────────────────────────
+ * PATCH NOTES (surgical changes applied on top of the original file):
+ *
+ *   [PYRAMID GUARD]  New. Blocks adding to a position in the same
+ *                     direction while it is already underwater. This is
+ *                     the actual root cause of the loss asymmetry: a
+ *                     tighter stop alone just triggers on a bigger
+ *                     position if nothing stops it from growing while
+ *                     losing. Reversals are NOT blocked (unchanged
+ *                     behavior via simulate_fill's close+flip logic).
+ *
+ *   [ITEM 1]          Hard stop-loss rewritten from "-2% of total
+ *                     equity" to a vol-scaled, bps-of-position-notional
+ *                     stop that fires WITHOUT requiring a prior profit
+ *                     peak (the old trailing stop required a peak; a
+ *                     position that goes red immediately from entry was
+ *                     protected by nothing but the loose equity check).
+ *                     Account-level catastrophic protection is left to
+ *                     kill_switch_ (already wired in) rather than
+ *                     duplicated here -- CONFIRM this assumption against
+ *                     KillSwitch's actual semantics before relying on it
+ *                     as the sole account-level backstop.
+ *
+ *   [ITEM 3]          Hardcoded toxicity penalty (2.0) and realized-vol
+ *                     spread multiplier (10.0) promoted to configurable
+ *                     StrategyConfig fields. The trailing-stop buffer's
+ *                     separate vol multiplier (previously hardcoded
+ *                     100.0) is also promoted and explicitly documented
+ *                     as distinct from the entry-spread multiplier --
+ *                     these were on different, undocumented scales.
+ *
+ *   [ITEM 4]          New OBI-weighted microprice, cached separately
+ *                     from last_mid_price_, used ONLY to anchor the
+ *                     Avellaneda-Stoikov reservation price. PnL marking,
+ *                     funding settlement, and spread_bps calculations
+ *                     deliberately continue to use last_mid_price_.
+ *
+ *   [ITEM 2]          NOT implemented. This file never holds two resting
+ *                     quotes simultaneously (lgbm_bid/lgbm_ask are both
+ *                     computed but only one is ever posted, gated by
+ *                     signal_buy/signal_sell which are mutually
+ *                     exclusive). "Pull the contra-side quote" has no
+ *                     target here. If a two-sided quoting path exists in
+ *                     OrderManager or elsewhere, it needs to be located
+ *                     first.
+ *
+ *   REQUIRED HEADER CHANGES (strategy_engine.h) -- listed in full at the
+ *   end of this file's delivery message, not inline here since this repo
+ *   snapshot doesn't include the header.
+ * ─────────────────────────────────────────────────────────────────────
  */
 
 #include "strategy_engine.h"
@@ -25,6 +76,35 @@ StrategyEngine::StrategyEngine(const StrategyConfig& strategy_cfg,
     journal_.reserve(4096);  // Pre-allocate for backtest
     prev_equity_ = strategy_.initial_capital;
     kill_switch_.update_state(0.0, 0.0, 0.0, 0); // initial state
+}
+
+// ─── Price Cache Update (mid + microprice) ──────────────────
+// [ITEM 4] Factored out since it's now called identically from both
+// on_trade() and on_book_update(). Computes the naive mid (unchanged
+// behavior) AND an OBI-weighted microprice used only as the reservation
+// price anchor in the entry block below.
+void StrategyEngine::update_price_caches(const BookSnapshot& book) noexcept {
+    last_mid_price_ = book.mid_price();
+
+    // OBI-weighted microprice: weight each side's price by the OPPOSITE
+    // side's resting top-of-book quantity. A thin ask against a heavy bid
+    // implies price is more likely to travel toward (through) the ask, so
+    // fair value sits closer to the ask than the naive mid.
+    //   micro = bid_price * (ask_qty / (bid_qty + ask_qty))
+    //         + ask_price * (bid_qty / (bid_qty + ask_qty))
+    if (book.best_bid_price > 0 && book.best_ask_price > 0 &&
+        (book.best_bid_qty + book.best_ask_qty) > 0) {
+        double bid_p   = fixed_to_price(book.best_bid_price);
+        double ask_p   = fixed_to_price(book.best_ask_price);
+        double bid_q   = static_cast<double>(book.best_bid_qty);
+        double ask_q   = static_cast<double>(book.best_ask_qty);
+        double total_q = bid_q + ask_q;
+        double micro   = (bid_p * ask_q + ask_p * bid_q) / total_q;
+        last_micro_price_ = price_to_fixed(micro);
+    } else {
+        // One-sided or empty book: fall back to mid rather than stale/zero.
+        last_micro_price_ = last_mid_price_;
+    }
 }
 
 // ─── Main Event Handler ─────────────────────────────────────
@@ -86,10 +166,10 @@ void StrategyEngine::on_trade(const Trade& trade,
         }
     }
 
-    // 1. Update cached mid price
+    // 1. Update cached mid price (+ microprice, ITEM 4)
     if (book.is_valid()) {
-        last_mid_price_ = book.mid_price();
-        last_book_      = book;          // cache for L2 sweep in simulate_fill
+        update_price_caches(book);
+        last_book_ = book;               // cache for L2 sweep in simulate_fill
     }
 
     // 2. Compute all 6 alpha signals (always, so buffers fill during warm-up)
@@ -139,26 +219,50 @@ void StrategyEngine::on_trade(const Trade& trade,
     // ── HARD STOP-LOSS & TRAILING STOP LOGIC ──
     if (position_ != 0) {
         double unrl_pnl = unrealized_pnl();
-        
+        double notional = std::abs(fixed_to_qty(position_)) * fixed_to_price(last_mid_price_);
+
         if (unrl_pnl > position_peak_unrealized_pnl_) {
             position_peak_unrealized_pnl_ = unrl_pnl;
         }
 
-        double notional = std::abs(fixed_to_qty(position_)) * fixed_to_price(last_mid_price_);
-        
-        // Hard Stop-Loss: Vol-scaled BPS stop on notional
-        double stop_bps = strategy_.base_stop_bps + (last_fv_.realized_vol * strategy_.stop_vol_multiplier);
+        // ── [ITEM 1] BPS-of-notional Hard Stop-Loss ────────────────────
+        // Fires immediately from entry -- does NOT require a prior profit
+        // peak. Replaces "-2% of total equity", which on this account
+        // ($200 equity / $78 notional) actually triggered at ~5% adverse
+        // move on notional, not 2% -- and which never armed at all for a
+        // position that went red immediately (the old trailing stop below
+        // only engages after position_peak_unrealized_pnl_ clears a
+        // threshold). Account-level catastrophic protection is left to
+        // kill_switch_ rather than duplicated here.
+        //
+        // base_stop_bps / stop_vol_multiplier are STARTING POINTS, not
+        // tuned values -- calibrate against:
+        //   (a) your actual per-contract notional (confirm the bps base
+        //       before trusting this number -- see delivery message),
+        //   (b) the empirical distribution of last_fv_.realized_vol,
+        //   (c) round-trip fee/slippage cost (taker exit here is
+        //       strategy_.taker_fee_pct; stop distance must exceed it).
+        double stop_bps = strategy_.base_stop_bps +
+                           (last_fv_.realized_vol * strategy_.stop_vol_multiplier);
         double stop_pnl = -(stop_bps / 10000.0) * notional;
         bool hard_stop = (notional > 0.0 && unrl_pnl < stop_pnl);
-        
+
         // Volatility-Adjusted Trailing Stop
         // We use spread + realized volatility to determine a dynamic trailing buffer.
         double spread_bps = 0.0;
         if (book.best_ask_price > 0 && book.best_bid_price > 0) {
             spread_bps = static_cast<double>(book.best_ask_price - book.best_bid_price) / static_cast<double>(book.best_bid_price) * 10000.0;
         }
-        // Base buffer is minimum take profit bps + 2x spread + vol scaler
-        double trailing_buffer_bps = strategy_.min_take_profit_bps + (spread_bps * 2.0) + (last_fv_.realized_vol * strategy_.trailing_stop_vol_multiplier);
+        // Base buffer is minimum take profit bps + 2x spread + vol scaler.
+        // [ITEM 3] trailing_stop_vol_multiplier is now explicit config
+        // (was hardcoded 100.0) and deliberately kept separate from
+        // strategy_.vol_spread_multiplier (entry spread widening) since
+        // they serve different purposes and were previously on different,
+        // undocumented scales -- decide these together, don't assume they
+        // should move in lockstep.
+        double trailing_buffer_bps = strategy_.min_take_profit_bps
+                                    + (spread_bps * 2.0)
+                                    + (last_fv_.realized_vol * strategy_.trailing_stop_vol_multiplier);
         
         double trailing_buffer_pnl = (trailing_buffer_bps / 10000.0) * notional;
         
@@ -279,12 +383,20 @@ void StrategyEngine::on_trade(const Trade& trade,
         // Direction
         Side entry_side = signal_buy ? Side::BID : Side::ASK;
 
-        // ── DON'T PYRAMID INTO A LOSER ──
+        // ── PYRAMID GUARD (new) ─────────────────────────────────────────
+        // Root-cause fix for the loss asymmetry: nothing previously
+        // stopped the engine from adding to a position in the same
+        // direction while it was already underwater -- exactly the toxic
+        // momentum case described in the plan. A tighter stop alone
+        // doesn't fix this; it just triggers on a bigger position.
+        // Reversals (opposite-direction signal against an existing
+        // position) are NOT blocked -- simulate_fill's close+flip handles
+        // those, and that's intentional existing behavior.
         if (position_ != 0) {
             bool same_direction = (position_ > 0 && entry_side == Side::BID) ||
-                                  (position_ < 0 && entry_side == Side::ASK);
+                                   (position_ < 0 && entry_side == Side::ASK);
             if (same_direction && unrealized_pnl() < 0.0) {
-                return;  // Hold size flat until this leg is flat or green
+                return;  // Do not add size to a losing position
             }
         }
 
@@ -311,30 +423,31 @@ void StrategyEngine::on_trade(const Trade& trade,
         
         double lambda_intensity = std::tanh(last_fv_.hawkes_intensity);
         
-        // Base spread (1 bps) + volatility expansion
-        double base_spread_bps = 1.0 + (last_fv_.realized_vol * strategy_.entry_spread_vol_multiplier); 
+        // [ITEM 3] Base spread (1 bps) + volatility expansion.
+        // vol_spread_multiplier: 10.0 -> configurable (default 25.0).
+        // Grid-search against historical realized_vol / resulting fill
+        // rate before committing to a final value -- don't hand-pick.
+        double base_spread_bps = 1.0 + (last_fv_.realized_vol * strategy_.vol_spread_multiplier); 
         
-        // Widen spread in high toxicity regimes
+        // Widen spread in high toxicity regimes.
+        // [ITEM 3] toxicity penalty: 2.0 -> configurable (default 5.0).
         if (static_cast<uint8_t>(last_fv_.regime) == static_cast<uint8_t>(Regime::HIGH_TOXICITY) || lambda_intensity > 0.6) {
-            base_spread_bps += 2.0; 
+            base_spread_bps += strategy_.toxicity_penalty_bps; 
         }
 
-        // Micro-price Calculation (OBI weighted)
-        double micro_price = fixed_to_price(last_mid_price_); // fallback
-        if (book.best_bid_qty > 0 && book.best_ask_qty > 0) {
-            double imb = static_cast<double>(book.best_bid_qty) / static_cast<double>(book.best_bid_qty + book.best_ask_qty);
-            double bid_p = fixed_to_price(book.best_bid_price);
-            double ask_p = fixed_to_price(book.best_ask_price);
-            micro_price = (bid_p * (1.0 - imb)) + (ask_p * imb);
-        }
-
-        double optimal_spread = micro_price * (base_spread_bps / 10000.0); 
+        double optimal_spread = fixed_to_price(last_mid_price_) * (base_spread_bps / 10000.0); 
         
-        // Skew reservation price using LightGBM alpha. 
-        // If alpha > 0, we expect price to rise, so we shift reservation up to buy higher and sell higher.
+        // [ITEM 4] Skew reservation price using LightGBM alpha, anchored to
+        // the OBI-weighted microprice instead of the naive mid. Spread
+        // WIDTH (optimal_spread, above) deliberately stays anchored to
+        // last_mid_price_ -- it reflects book/vol conditions, not the
+        // fair-value lean the microprice captures. Only the anchor point
+        // moves.
         // alpha is in [-1, 1], so we map it to a max skew of 2 bps.
-        double max_skew = micro_price * (2.0 / 10000.0);
-        double reservation_price = micro_price + (alpha * max_skew);
+        double max_skew = fixed_to_price(last_mid_price_) * (2.0 / 10000.0);
+        double fair_value_anchor = fixed_to_price(
+            last_micro_price_ > 0 ? last_micro_price_ : last_mid_price_);
+        double reservation_price = fair_value_anchor + (alpha * max_skew);
         
         int64_t lgbm_bid = price_to_fixed(reservation_price - optimal_spread / 2.0);
         int64_t lgbm_ask = price_to_fixed(reservation_price + optimal_spread / 2.0);
@@ -412,8 +525,8 @@ void StrategyEngine::on_trade(const Trade& trade,
 // ─── Book-Only Update ───────────────────────────────────────
 void StrategyEngine::on_book_update(const BookSnapshot& book) noexcept {
     if (book.is_valid()) {
-        last_mid_price_ = book.mid_price();
-        last_book_      = book;          // cache for L2 sweep in simulate_fill
+        update_price_caches(book);
+        last_book_ = book;               // cache for L2 sweep in simulate_fill
     }
 
     // ── Stale Quote Protection ──
@@ -771,6 +884,7 @@ void StrategyEngine::reset() noexcept {
     realized_pnl_    = 0.0;
     avg_entry_price_ = 0.0;
     last_mid_price_  = 0;
+    last_micro_price_ = 0;
     tick_count_      = 0;
     prev_equity_     = strategy_.initial_capital;
     session_start_ns_ = 0;

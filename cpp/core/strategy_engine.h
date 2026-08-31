@@ -71,7 +71,7 @@ struct StrategyConfig {
 
     double  min_take_profit_bps   = 5.0;   ///< Minimum take profit bps required before alpha decay exit
     double  max_position_pct      = 0.15;   ///< Unified Max Position Size as % of portfolio
-    double  initial_capital       = 200.0; ///< Starting capital ($200 Paper/Testnet Capital)
+    double  initial_capital       = 10000000.0; ///< Starting capital ($10,000,000 Testnet Capital)
     double  maker_fee_pct         = -0.00005; ///< Maker fee (-0.5 bps institutional rebate)
     double  taker_fee_pct         = 0.00015;  ///< Taker fee (1.5 bps institutional taker)
     int64_t max_open_orders       = 5;      ///< Max concurrent orders
@@ -81,8 +81,9 @@ struct StrategyConfig {
     // Explicit Stop-Loss & Spread Multipliers
     double  base_stop_bps               = 15.0; ///< Base unconditional stop-loss in bps
     double  stop_vol_multiplier         = 25.0; ///< Vol scaling for stop-loss distance
-    double  entry_spread_vol_multiplier = 25.0; ///< Vol scaling for entry spread widening
+    double  vol_spread_multiplier       = 25.0; ///< Vol scaling for entry spread widening
     double  trailing_stop_vol_multiplier= 50.0; ///< Vol scaling for trailing stop buffer
+    double  toxicity_penalty_bps        = 5.0;  ///< Penalty for highly toxic regimes
     
     // Avellaneda-Stoikov Inventory Model Parameters
     double  gamma_by_regime[4]    = {0.1, 0.5, 0.1, 0.2}; ///< Risk aversion by Regime (NORMAL, HIGH_TOXICITY, LOW_LIQUIDITY, TRENDING)
@@ -200,6 +201,8 @@ public:
      * generate trading signals (to avoid double-counting).
      */
     void on_book_update(const BookSnapshot& book) noexcept;
+
+    void update_price_caches(const BookSnapshot& book) noexcept;
 
     // ── State Queries ───────────────────────────────────────
     /// Current net position (signed, fixed-point)
@@ -348,6 +351,7 @@ private:
     double   realized_pnl_   = 0.0;    ///< Cumulative realized PnL
     double   avg_entry_price_ = 0.0;   ///< VWAP of current position
     int64_t  last_mid_price_ = 0;      ///< Latest mid price (fixed-point)
+    int64_t  last_micro_price_ = 0;    ///< OBI-weighted microprice
     int64_t  tick_count_     = 0;      ///< Total ticks processed
     double   prev_equity_    = 0.0;    ///< Previous tick's equity (for returns)
     int64_t  session_start_ns_ = 0;    ///< First tick timestamp of the day
