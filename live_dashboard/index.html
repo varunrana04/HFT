@@ -68,11 +68,14 @@
     <script>
         const statusEl = document.getElementById('connection-status');
         statusEl.innerHTML = 'Starting JS...';
+        
+        let chart;
+        let priceSeries;
 
         try {
             // Initialize Lightweight Charts
             const chartContainer = document.getElementById('price-chart');
-            const chart = LightweightCharts.createChart(chartContainer, {
+            chart = LightweightCharts.createChart(chartContainer, {
             width: chartContainer.clientWidth || 800,
             height: chartContainer.clientHeight || 400,
             layout: {
@@ -97,7 +100,7 @@
         });
 
         // Add Series
-        const priceSeries = chart.addLineSeries({
+        priceSeries = chart.addLineSeries({
             color: '#2962FF',
             lineWidth: 2,
             title: 'Mid Price',
