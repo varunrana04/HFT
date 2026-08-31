@@ -18,7 +18,7 @@ WORKDIR /app
 # Copy the CMake project files
 COPY CMakeLists.txt .
 # Bust the cache to ensure Render rebuilds the engine with the LightGBM model loaded
-ENV CACHE_BUSTER=2
+ENV CACHE_BUSTER=3
 COPY cpp/ cpp/
 
 # Download simdjson single-header

@@ -98,9 +98,13 @@ double SignalCombiner::combine_lgbm(const double signals[11]) const noexcept {
         sum += tree.nodes[node_idx].leaf_value;
     }
     
-    // LightGBM outputs margin, we don't apply sigmoid if it was trained as Regressor
-    // However, our alphas need to be in [-1, 1], and the LGBMRegressor was trained on targets in that range.
-    return std::clamp(sum, -1.0, 1.0);
+    // LightGBM outputs regression values. The optimal threshold found during training was 0.000032.
+    // Our existing StrategyConfig expects alphas in the range of [-5.0, 5.0] with an entry threshold of 3.5.
+    // We scale the LGBM output by (3.5 / 0.000032) = 109375.0 to make it compatible with the existing config
+    // and spread penalty multipliers.
+    double scaled_sum = sum * 109375.0;
+    
+    return std::clamp(scaled_sum, -10.0, 10.0);
 }
 
 // ─── set_weights() ───────────────────────────────────────────
