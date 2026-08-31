@@ -23,6 +23,11 @@ public:
      */
     bool cancel_order(const std::string& order_id, const std::string& symbol = "BTCUSD");
 
+    /**
+     * Cancel all open orders via DELETE /v2/orders?product_id=XXX
+     */
+    bool cancel_all_orders(const std::string& symbol = "BTCUSD");
+
 private:
     std::string api_key_;
     std::string api_secret_;

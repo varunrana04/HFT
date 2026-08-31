@@ -73,7 +73,8 @@ bool DeltaRest::submit_order(const Order& order, const std::string& symbol) {
     double qty = fixed_to_qty(order.quantity);
 
     std::stringstream ss;
-    ss << "{\"product_id\":" << product_id_ << ",\"order_type\":\"limit_order\",\"size\":" << (int)qty 
+    int size_contracts = std::max(1, static_cast<int>(qty * 1000.0));
+    ss << "{\"product_id\":" << product_id_ << ",\"order_type\":\"limit_order\",\"size\":" << size_contracts 
        << ",\"side\":\"" << side_str << "\",\"limit_price\":\"" << std::fixed << std::setprecision(1) << price 
        << "\",\"time_in_force\":\"gtc\"}";
     
