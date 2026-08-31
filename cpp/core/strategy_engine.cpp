@@ -378,6 +378,7 @@ void StrategyEngine::on_trade(const Trade& trade,
                         else break;
                     }
                 }
+                int64_t tob_qty = (entry_side == Side::BID) ? book.best_bid_qty : book.best_ask_qty;
                 pending_order_.queue_position = (l2_queue > 0) ? l2_queue : tob_qty;
                 
                 pending_order_.timestamp_ns = last_fv_.timestamp_ns;
