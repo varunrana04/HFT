@@ -139,7 +139,6 @@ void StrategyEngine::on_trade(const Trade& trade,
     // ── HARD STOP-LOSS & TRAILING STOP LOGIC ──
     if (position_ != 0) {
         double unrl_pnl = unrealized_pnl();
-        double current_eq = equity();
         
         if (unrl_pnl > position_peak_unrealized_pnl_) {
             position_peak_unrealized_pnl_ = unrl_pnl;
