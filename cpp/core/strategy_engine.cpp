@@ -349,13 +349,8 @@ void StrategyEngine::on_trade(const Trade& trade,
 
         if (exec_price == INVALID_PRICE || exec_price <= 0) return;
 
-        // Market Impact Depth Check: Cap at 5% of Top-of-Book
-        int64_t tob_qty = (entry_side == Side::BID) ? book.best_bid_qty : book.best_ask_qty;
-        int64_t max_allowed_qty = static_cast<int64_t>(static_cast<double>(tob_qty) * 0.05);
-        if (order_qty > max_allowed_qty) {
-            order_qty = max_allowed_qty; // Scale down instead of outright rejection to capture edge
-        }
-        if (order_qty <= 0) return;
+        // (Market Impact Depth Check removed for testnet liquidity reasons)
+
 
         // Build entry order
         Order entry_order = order_mgr_.create_order(
@@ -404,6 +399,16 @@ void StrategyEngine::on_book_update(const BookSnapshot& book) noexcept {
     if (pending_order_.active) {
         if (book.timestamp_ns - pending_order_.timestamp_ns > pending_order_.max_allowed_wait_ns) {
             pending_order_.active = false;
+        } else {
+            // ── MATCHING ENGINE SIMULATION (PRICE-BASED FOR TESTNET) ──
+            // If the market moved through our limit price, simulate a fill
+            if (pending_order_.side == Side::BID && book.best_ask_price <= pending_order_.price) {
+                simulate_fill(pending_order_.side, pending_order_.price, pending_order_.qty, false);
+                pending_order_.active = false;
+            } else if (pending_order_.side == Side::ASK && book.best_bid_price >= pending_order_.price) {
+                simulate_fill(pending_order_.side, pending_order_.price, pending_order_.qty, false);
+                pending_order_.active = false;
+            }
         }
     }
 

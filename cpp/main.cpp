@@ -66,7 +66,9 @@ int main() {
     std::cout << "[INFO] Loaded Delta Exchange API Credentials.\n";
 
     // 2. Initialize Engine
-    StrategyEngine engine;
+    StrategyConfig cfg;
+    cfg.min_warmup_ticks = 10;
+    StrategyEngine engine(cfg);
     if (engine.load_lgbm_model("lgbm_signal_model.txt")) {
         std::cout << "[INFO] LightGBM Alpha Model loaded successfully.\n";
     } else {
@@ -97,11 +99,26 @@ int main() {
 
     // 7. Main loop — 10 Hz
     int ticks = 0;
+    int64_t last_synthetic_trade_ms = 0;
     while (g_running) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         ticks++;
 
         auto latest_book = engine.latest_book();
+        
+        // Inject a synthetic trade if the testnet is completely dead for > 1 second
+        // This ensures the Avellaneda-Stoikov model continues to update quotes
+        auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        if (latest_book.timestamp_ns > 0 && (now_ms - last_synthetic_trade_ms > 1000)) {
+            Trade dummy{};
+            dummy.price = latest_book.mid_price();
+            dummy.quantity = 0; // 0 volume doesn't mess up VPIN
+            dummy.timestamp_ns = latest_book.timestamp_ns;
+            dummy.side = Side::NONE;
+            engine.on_trade(dummy, latest_book);
+            last_synthetic_trade_ms = now_ms;
+        }
+
         auto fv          = engine.last_features();
         double pnl       = engine.realized_pnl() + engine.unrealized_pnl();
         int64_t pos      = engine.position();
