@@ -27,6 +27,7 @@ private:
     std::string api_key_;
     std::string api_secret_;
     std::string base_url_;
+    int product_id_ = 27;
 
     std::string generate_signature(const std::string& method, const std::string& endpoint, const std::string& payload, const std::string& timestamp) const;
 

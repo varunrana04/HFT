@@ -27,7 +27,12 @@ DeltaRest::DeltaRest(const std::string& api_key, const std::string& api_secret)
     : api_key_(api_key), api_secret_(api_secret), impl_(std::make_unique<Impl>()) {
     const char* env_url = std::getenv("DELTA_BASE_URL");
     base_url_ = env_url ? env_url : "https://api.delta.exchange";
-    std::cout << "[DeltaRest] REST base URL: " << base_url_ << "\n";
+    
+    const char* env_pid = std::getenv("DELTA_PRODUCT_ID");
+    if (env_pid) {
+        product_id_ = std::stoi(env_pid);
+    }
+    std::cout << "[DeltaRest] REST base URL: " << base_url_ << " | Product ID: " << product_id_ << "\n";
 }
 
 DeltaRest::~DeltaRest() = default;
@@ -68,7 +73,7 @@ bool DeltaRest::submit_order(const Order& order, const std::string& symbol) {
     double qty = fixed_to_qty(order.quantity);
 
     std::stringstream ss;
-    ss << "{\"product_id\":27,\"order_type\":\"limit_order\",\"size\":" << (int)qty 
+    ss << "{\"product_id\":" << product_id_ << ",\"order_type\":\"limit_order\",\"size\":" << (int)qty 
        << ",\"side\":\"" << side_str << "\",\"limit_price\":\"" << std::fixed << std::setprecision(1) << price 
        << "\",\"time_in_force\":\"gtc\"}";
     
