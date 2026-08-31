@@ -71,55 +71,62 @@
         
         let chart;
         let priceSeries;
+        let initErrorMsg = null;
 
-        try {
-            // Initialize Lightweight Charts
-            const chartContainer = document.getElementById('price-chart');
-            chart = LightweightCharts.createChart(chartContainer, {
-            width: chartContainer.clientWidth || 800,
-            height: chartContainer.clientHeight || 400,
-            layout: {
-                background: { type: 'solid', color: 'transparent' },
-                textColor: '#d1d4dc',
-            },
-            grid: {
-                vertLines: { color: 'rgba(42, 46, 57, 0.5)' },
-                horzLines: { color: 'rgba(42, 46, 57, 0.5)' },
-            },
-            crosshair: {
-                mode: LightweightCharts.CrosshairMode.Normal,
-            },
-            rightPriceScale: {
-                borderColor: 'rgba(197, 203, 206, 0.8)',
-            },
-            timeScale: {
-                borderColor: 'rgba(197, 203, 206, 0.8)',
-                timeVisible: true,
-                secondsVisible: true,
-            },
-        });
+        function initChart() {
+            try {
+                const chartContainer = document.getElementById('price-chart');
+                if (!chartContainer) throw new Error("chartContainer not found");
+                
+                chart = LightweightCharts.createChart(chartContainer, {
+                    width: chartContainer.clientWidth || 800,
+                    height: chartContainer.clientHeight || 400,
+                    layout: {
+                        background: { type: 'solid', color: 'transparent' },
+                        textColor: '#d1d4dc',
+                    },
+                    grid: {
+                        vertLines: { color: 'rgba(42, 46, 57, 0.5)' },
+                        horzLines: { color: 'rgba(42, 46, 57, 0.5)' },
+                    },
+                    crosshair: {
+                        mode: LightweightCharts.CrosshairMode.Normal,
+                    },
+                    rightPriceScale: {
+                        borderColor: 'rgba(197, 203, 206, 0.8)',
+                    },
+                    timeScale: {
+                        borderColor: 'rgba(197, 203, 206, 0.8)',
+                        timeVisible: true,
+                        secondsVisible: true,
+                    },
+                });
 
-        // Add Series
-        priceSeries = chart.addLineSeries({
-            color: '#2962FF',
-            lineWidth: 2,
-            title: 'Mid Price',
-            crosshairMarkerVisible: true,
-        });
+                priceSeries = chart.addLineSeries({
+                    color: '#2962FF',
+                    lineWidth: 2,
+                    title: 'Mid Price',
+                    crosshairMarkerVisible: true,
+                });
 
-        // Handle Resize using ResizeObserver to ensure it sizes correctly after CSS layout
-        const ro = new ResizeObserver(entries => {
-            if (entries.length === 0 || entries[0].target !== chartContainer) return;
-            const newRect = entries[0].contentRect;
-            if (newRect.width > 0 && newRect.height > 0) {
-                chart.resize(newRect.width, newRect.height);
+                const ro = new ResizeObserver(entries => {
+                    if (entries.length === 0 || entries[0].target !== chartContainer) return;
+                    const newRect = entries[0].contentRect;
+                    if (newRect.width > 0 && newRect.height > 0 && chart) {
+                        chart.resize(newRect.width, newRect.height);
+                    }
+                });
+                ro.observe(chartContainer);
+                initErrorMsg = null;
+                return true;
+            } catch (initErr) {
+                console.error("Initialization error:", initErr);
+                initErrorMsg = initErr.message;
+                return false;
             }
-        });
-        ro.observe(chartContainer);
-        } catch (initErr) {
-            console.error("Initialization error:", initErr);
-            statusEl.innerHTML = 'Init Error: ' + initErr.message;
         }
+
+        initChart();
 
         // We already define statusEl above, so remove the duplicate declaration here
         // const statusEl = document.getElementById('connection-status');
@@ -164,26 +171,32 @@
 
                 // Update chart
                 if (mid > 0) {
-                    try {
-                        // Use a strictly incrementing time counter to mathematically guarantee LightweightCharts never throws a time error
-                        let newTime;
-                        if (typeof window.lastChartTime === 'undefined') {
-                            newTime = Math.floor(Date.now() / 1000);
-                            priceSeries.setData([{ time: newTime - 1, value: mid }]);
-                            window.chartPrimed = true;
-                        } else {
-                            newTime = window.lastChartTime + 1;
-                        }
-                        
-                        priceSeries.update({ time: newTime, value: mid });
-                        window.lastChartTime = newTime;
-                        chart.timeScale().fitContent();
-                    } catch (chartErr) {
-                        console.warn("Chart update skipped:", chartErr);
-                        // FIXED: Typo was 'status', actual ID is 'connection-status'
+                    if (!priceSeries) {
                         const statusBadge = document.getElementById('connection-status');
-                        statusBadge.innerHTML = 'Chart Err: ' + chartErr.message;
-                        statusBadge.className = 'px-3 py-1 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30';
+                        statusBadge.innerHTML = 'Chart Init Error: ' + (initErrorMsg || 'Unknown');
+                        statusBadge.className = 'px-3 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-500 border border-red-500/30';
+                    } else {
+                        try {
+                            // Use a strictly incrementing time counter to mathematically guarantee LightweightCharts never throws a time error
+                            let newTime;
+                            if (typeof window.lastChartTime === 'undefined') {
+                                newTime = Math.floor(Date.now() / 1000);
+                                priceSeries.setData([{ time: newTime - 1, value: mid }]);
+                                window.chartPrimed = true;
+                            } else {
+                                newTime = window.lastChartTime + 1;
+                            }
+                            
+                            priceSeries.update({ time: newTime, value: mid });
+                            window.lastChartTime = newTime;
+                            chart.timeScale().fitContent();
+                        } catch (chartErr) {
+                            console.warn("Chart update skipped:", chartErr);
+                            // FIXED: Typo was 'status', actual ID is 'connection-status'
+                            const statusBadge = document.getElementById('connection-status');
+                            statusBadge.innerHTML = 'Chart Err: ' + chartErr.message;
+                            statusBadge.className = 'px-3 py-1 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30';
+                        }
                     }
                 }
             } catch (e) {
