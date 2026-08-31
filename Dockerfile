@@ -17,8 +17,8 @@ WORKDIR /app
 
 # Copy the CMake project files
 COPY CMakeLists.txt .
-# Bust the cache to ensure Render rebuilds the engine with the Ping fix
-ENV CACHE_BUSTER=1
+# Bust the cache to ensure Render rebuilds the engine with the LightGBM model loaded
+ENV CACHE_BUSTER=2
 COPY cpp/ cpp/
 
 # Download simdjson single-header
@@ -58,6 +58,9 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copy the dashboard files to NGINX web root
 COPY live_dashboard/ /var/www/html/
 RUN chmod -R 777 /var/www/html/
+
+# Copy the LightGBM ML model
+COPY python/models/lgbm_signal_model.txt .
 
 # Copy entrypoint script
 COPY start.sh .

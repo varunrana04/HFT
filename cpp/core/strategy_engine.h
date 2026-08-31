@@ -302,6 +302,10 @@ public:
         return combiner_.load_model(path);
     }
 
+    [[nodiscard]] bool load_lgbm_model(const char* path) noexcept {
+        return combiner_.load_lgbm_model(path);
+    }
+
     [[nodiscard]] bool load_optimal_weights(const char* path) noexcept {
         return combiner_.load_optimal_weights(path);
     }

@@ -67,6 +67,11 @@ int main() {
 
     // 2. Initialize Engine
     StrategyEngine engine;
+    if (engine.load_lgbm_model("lgbm_signal_model.txt")) {
+        std::cout << "[INFO] LightGBM Alpha Model loaded successfully.\n";
+    } else {
+        std::cerr << "[WARNING] Could not load lgbm_signal_model.txt! Using fallback weights.\n";
+    }
 
     // 3. Initialize Gateways — Delta Exchange only
     const char* sym_env    = std::getenv("DELTA_SYMBOL");
