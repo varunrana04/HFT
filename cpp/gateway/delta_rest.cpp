@@ -143,7 +143,7 @@ bool DeltaRest::cancel_all_orders(const std::string& /*symbol*/) {
         return false;
     }
 
-    std::string endpoint = "/v2/orders/all?product_id=" + std::to_string(product_id_);
+    std::string endpoint = "/v2/orders/all";
     std::string url = base_url_ + endpoint;
 
     auto now = std::chrono::system_clock::now();
