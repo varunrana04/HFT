@@ -14,7 +14,7 @@ fi
 
 echo "Starting C++ HFT Engine in background..."
 export BYBIT_BASE_URL="https://api-demo.bybit.com"
-export BYBIT_WS_BASE_URL="wss://stream-demo.bybit.com/v5/public/linear"
+export BYBIT_WS_BASE_URL="wss://stream.bybit.com/v5/public/linear"
 ./hft_engine_live &
 ENGINE_PID=$!
 
