@@ -63,7 +63,8 @@ int main() {
     }
     std::string api_key(api_key_env);
     std::string api_secret(api_secret_env);
-    std::cout << "[INFO] Loaded Bybit API Credentials.\n";
+    std::cout << "[INFO] Loaded Bybit API Credentials. Key length: " << api_key.length() 
+              << ", Secret length: " << api_secret.length() << "\n";
 
     // 2. Initialize Engine
     StrategyConfig cfg;

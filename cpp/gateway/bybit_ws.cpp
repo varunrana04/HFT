@@ -20,8 +20,8 @@ struct BybitWs::Impl {
     
     Impl(const std::string& symbol) {
         (void)symbol;
-        const char* env_url = std::getenv("BYBIT_WS_URL");
-        ws_url = env_url ? env_url : "wss://stream-testnet.bybit.com/v5/public/linear";
+        const char* env_url = std::getenv("BYBIT_WS_BASE_URL");
+        ws_url = env_url ? env_url : "wss://stream.bybit.com/v5/public/linear";
     }
 };
 

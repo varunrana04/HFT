@@ -26,7 +26,7 @@ struct BybitRest::Impl {
 BybitRest::BybitRest(const std::string& api_key, const std::string& api_secret) 
     : api_key_(api_key), api_secret_(api_secret), impl_(std::make_unique<Impl>()) {
     const char* env_url = std::getenv("BYBIT_BASE_URL");
-    base_url_ = env_url ? env_url : "https://api-testnet.bybit.com";
+    base_url_ = env_url ? env_url : "https://api.bybit.com";
     
     std::cout << "[BybitRest] REST base URL: " << base_url_ << "\n";
 }
