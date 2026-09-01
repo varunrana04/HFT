@@ -83,7 +83,6 @@ bool BybitRest::submit_order(const Order& order, const std::string& symbol) {
     ix::HttpRequestArgsPtr args = impl_->httpClient.createRequest();
     args->extraHeaders["X-BAPI-API-KEY"] = api_key_;
     args->extraHeaders["X-BAPI-SIGN"] = signature;
-    args->extraHeaders["X-BAPI-SIGN-TYPE"] = "2";
     args->extraHeaders["X-BAPI-TIMESTAMP"] = timestamp;
     args->extraHeaders["X-BAPI-RECV-WINDOW"] = "5000";
     args->extraHeaders["Content-Type"] = "application/json";
@@ -118,7 +117,6 @@ bool BybitRest::cancel_order(const std::string& order_id, const std::string& sym
     ix::HttpRequestArgsPtr args = impl_->httpClient.createRequest();
     args->extraHeaders["X-BAPI-API-KEY"] = api_key_;
     args->extraHeaders["X-BAPI-SIGN"] = signature;
-    args->extraHeaders["X-BAPI-SIGN-TYPE"] = "2";
     args->extraHeaders["X-BAPI-TIMESTAMP"] = timestamp;
     args->extraHeaders["X-BAPI-RECV-WINDOW"] = "5000";
     args->extraHeaders["Content-Type"] = "application/json";
@@ -154,7 +152,6 @@ bool BybitRest::cancel_all_orders(const std::string& symbol) {
     ix::HttpRequestArgsPtr args = impl_->httpClient.createRequest();
     args->extraHeaders["X-BAPI-API-KEY"] = api_key_;
     args->extraHeaders["X-BAPI-SIGN"] = signature;
-    args->extraHeaders["X-BAPI-SIGN-TYPE"] = "2";
     args->extraHeaders["X-BAPI-TIMESTAMP"] = timestamp;
     args->extraHeaders["X-BAPI-RECV-WINDOW"] = "5000";
     args->extraHeaders["Content-Type"] = "application/json";
