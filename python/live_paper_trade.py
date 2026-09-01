@@ -22,7 +22,7 @@ import zipfile
 # ─── Load Engine ───────────────────────────────────────────────
 from engine_loader import load_engine
 hft_engine = load_engine()
-from binance_order_gateway import BinanceOrderGateway
+from bybit_order_gateway import BybitOrderGateway
 print("DEBUG: Loaded C++ engine successfully")
 # ─── Global State ──────────────────────────────────────────────
 # ─── Process Lock & Global State ───────────────────────────────
@@ -82,9 +82,9 @@ sentiment_score: float = 0.0
 rl_position_mult: float = 1.0
 # Base order size from config (captured at boot; RL scales around this)
 _base_order_size_btc: float = 1.0
-# Cross-venue stat-arb: Bybit BTCUSDT perp mid-price and spread vs Binance
+# Cross-venue stat-arb: Bybit BTCUSDT perp mid-price and spread vs Bybit
 bybit_mid: float = 0.0
-cross_venue_spread_bps: float = 0.0   # (binance_mid - bybit_mid) / bybit_mid * 10000
+cross_venue_spread_bps: float = 0.0   # (bybit_mid - bybit_mid) / bybit_mid * 10000
 
 from contextlib import asynccontextmanager
 
@@ -92,57 +92,50 @@ from contextlib import asynccontextmanager
 gateway_latency_ns: float = 0.0        # nanoseconds: last book-update engine call
 execution_latency_ns: float = 0.0      # nanoseconds: last order-submit latency
 
-async def python_binance_ws():
-    """Pure-Python WebSocket fallback with sequence-gap detection and exponential backoff."""
+async def python_bybit_ws():
+    """Bybit Public WebSocket (V5) for Orderbook and Trades."""
     global gateway_latency_ns
-
-    ws_base = os.environ.get('BINANCE_WS_BASE_URL', 'wss://fstream.binance.com')
-    url = f"{ws_base}/stream?streams=btcusdt@trade/btcusdt@depth20@100ms"
-
-    # Sequence gap tracking (Binance Futures depth stream)
-    last_update_id: int = 0
+    
+    url = "wss://stream-testnet.bybit.com/v5/public/linear"
+    symbol = os.environ.get("BYBIT_SYMBOL", "BTCUSDT").upper()
     backoff: float = 1.0
 
     while True:
         try:
             print(f"[PythonWs] Connecting to {url}...")
-            async with websockets.connect(url, ping_interval=30, ping_timeout=10, max_size=None) as ws:
+            async with websockets.connect(url, ping_interval=20, ping_timeout=10, max_size=None) as ws:
                 print("[PythonWs] Connected and subscribed.")
-                backoff = 1.0  # reset on successful connect
+                backoff = 1.0
+                
+                sub_msg = {
+                    "op": "subscribe",
+                    "args": [f"orderbook.50.{symbol}", f"publicTrade.{symbol}"]
+                }
+                await ws.send(json.dumps(sub_msg))
 
                 async for msg in ws:
                     try:
                         data = json.loads(msg)
-                        if "data" not in data:
-                            continue
+                        topic = data.get("topic", "")
+                        
+                        if "publicTrade" in topic:
+                            for d in data.get("data", []):
+                                trade = hft_engine.Trade()
+                                trade.timestamp_ns = int(d["T"]) * 1_000_000
+                                trade.price = int(float(d["p"]) * 1e8)
+                                trade.qty   = int(float(d["v"]) * 1e8)
+                                trade.side  = hft_engine.Side.BID if d["S"] == "Buy" else hft_engine.Side.ASK
+                                engine.on_trade(trade, latest_book)
 
-                        d = data["data"]
-                        stream = data.get("stream", "")
-
-                        if "@trade" in stream:
-                            trade = hft_engine.Trade()
-                            trade.timestamp_ns = int(d["T"]) * 1_000_000
-                            trade.price = int(float(d["p"]) * 1e8)
-                            trade.qty   = int(float(d["q"]) * 1e8)  # must be .qty not .quantity
-                            trade.side  = hft_engine.Side.ASK if d["m"] else hft_engine.Side.BID
-                            engine.on_trade(trade, latest_book)
-
-                        elif "@depth20" in stream:
-                            u  = d.get("u", 0)
-                            pu = d.get("pu", 0)
-
-                            if last_update_id != 0 and pu != last_update_id:
-                                print(
-                                    f"[PythonWs] Sequence gap: expected pu={last_update_id} "
-                                    f"got pu={pu}. Reconnecting..."
-                                )
-                                last_update_id = 0
-                                break
-
-                            last_update_id = u
-                            latest_book.timestamp_ns = int(time.time() * 1e9)
+                        elif "orderbook" in topic:
+                            d = data.get("data", {})
                             bids = d.get("b", [])
                             asks = d.get("a", [])
+                            
+                            if not bids and not asks:
+                                continue
+                                
+                            latest_book.timestamp_ns = int(time.time() * 1e9)
 
                             if bids:
                                 latest_book.best_bid_price = int(float(bids[0][0]) * 1e8)
@@ -154,37 +147,25 @@ async def python_binance_ws():
                                 latest_book.ask_count      = len(asks)
 
                             if latest_book.is_valid():
-                                # Weighted OBI from full 20-level ladder
-                                # Weight = 1/(level+1) so top of book has most influence
-                                bid_wvol = sum(
-                                    float(b[1]) / (i + 1)
-                                    for i, b in enumerate(bids[:20]) if float(b[1]) > 0
-                                )
-                                ask_wvol = sum(
-                                    float(a[1]) / (i + 1)
-                                    for i, a in enumerate(asks[:20]) if float(a[1]) > 0
-                                )
+                                bid_wvol = sum(float(b[1]) / (i + 1) for i, b in enumerate(bids[:20]) if float(b[1]) > 0)
+                                ask_wvol = sum(float(a[1]) / (i + 1) for i, a in enumerate(asks[:20]) if float(a[1]) > 0)
                                 ladder_obi = (bid_wvol - ask_wvol) / (bid_wvol + ask_wvol + 1e-8)
 
                                 _t0 = time.perf_counter_ns()
                                 engine.on_book_update(latest_book)
                                 gateway_latency_ns = time.perf_counter_ns() - _t0
-
-                                # Override single-level OBI with full-ladder OBI
                                 engine._last_features.obi = ladder_obi
 
                     except Exception as loop_err:
-                        print(f"[PythonWs] Message loop error: {loop_err}")
+                        pass
 
         except asyncio.CancelledError:
             break
         except Exception as e:
-            import math
-            jitter = 0.5 * backoff * (1 + (time.time() % 1))  # ~0-100% jitter
-            wait = backoff + jitter
+            wait = backoff + 0.5
             print(f"[PythonWs] Disconnected: {e}. Reconnecting in {wait:.1f}s...")
             await asyncio.sleep(wait)
-            backoff = min(backoff * 2, 60.0)  # cap at 60 seconds
+            backoff = min(backoff * 2, 60.0)
 
 cpp_gateway = None
 
@@ -192,19 +173,19 @@ cpp_gateway = None
 async def lifespan(app: FastAPI):
     global cpp_gateway
 
-    symbol = os.environ.get("BINANCE_SYMBOL", "BTCUSDT").upper()
-    is_live = os.environ.get("BINANCE_MODE", "PAPER").upper() == "LIVE"
+    symbol = os.environ.get("BYBIT_SYMBOL", "BTCUSDT").upper()
+    is_live = os.environ.get("BYBIT_MODE", "PAPER").upper() == "LIVE"
 
-    print(f"[INFO] Reconciling {symbol} position directly with Binance API...")
-    gateway = BinanceOrderGateway()
+    print(f"[INFO] Reconciling {symbol} position directly with Bybit API...")
+    gateway = BybitOrderGateway()
     await gateway.connect()
     
     if not gateway.api_key or not gateway.api_secret:
         if is_live:
-            print("[FATAL] Binance API keys missing in LIVE mode. Aborting boot.")
+            print("[FATAL] Bybit API keys missing in LIVE mode. Aborting boot.")
             os._exit(1)
         else:
-            print("[WARNING] Binance API keys missing in PAPER mode. Booting with flat position.")
+            print("[WARNING] Bybit API keys missing in PAPER mode. Booting with flat position.")
             
     # Calculate UTC midnight timestamp for daily realized PnL
     now = datetime.now(timezone.utc)
@@ -216,22 +197,22 @@ async def lifespan(app: FastAPI):
         realized_pnl = await gateway.get_realized_pnl(symbol, midnight_ms)
         
         if pos_risk is not None:
-            binance_pos = float(pos_risk.get("positionAmt", 0.0))
-            binance_pnl = float(pos_risk.get("unRealizedProfit", 0.0))
-            binance_entry = float(pos_risk.get("entryPrice", 0.0))
+            bybit_pos = float(pos_risk.get("positionAmt", 0.0))
+            bybit_pnl = float(pos_risk.get("unRealizedProfit", 0.0))
+            bybit_entry = float(pos_risk.get("entryPrice", 0.0))
             
-            fixed_pos = int(binance_pos * 1e8)
+            fixed_pos = int(bybit_pos * 1e8)
             
             engine.set_position(fixed_pos)
-            engine.set_avg_entry_price(binance_entry)
+            engine.set_avg_entry_price(bybit_entry)
             engine.set_realized_pnl(realized_pnl)
             
             current_ts_ms = int(time.time() * 1000)
             engine.update_kill_switch_state(current_ts_ms)
             
-            print(f"[INFO] Position reconciled. True Pos: {binance_pos} {symbol}, Entry: ${binance_entry}, UnrlPnL: ${binance_pnl}, DailyRealPnL: ${realized_pnl}")
+            print(f"[INFO] Position reconciled. True Pos: {bybit_pos} {symbol}, Entry: ${bybit_entry}, UnrlPnL: ${bybit_pnl}, DailyRealPnL: ${realized_pnl}")
         else:
-            print("[FATAL] Could not retrieve position risk from Binance. Aborting boot.")
+            print("[FATAL] Could not retrieve position risk from Bybit. Aborting boot.")
             os._exit(1)
     except Exception as e:
         print(f"[FATAL] Exception during position reconciliation: {e}")
@@ -242,13 +223,13 @@ async def lifespan(app: FastAPI):
     use_cpp = os.environ.get("USE_CPP_GATEWAY", "0") == "1"
     cpp_gateway = None
 
-    if use_cpp and hasattr(hft_engine, "BinanceWs"):
+    if use_cpp and hasattr(hft_engine, "BybitWs"):
         print("[INFO] Initializing C++ Exchange Gateway (IXWebSocket)...")
-        cpp_gateway = hft_engine.BinanceWs("btcusdt")
+        cpp_gateway = hft_engine.BybitWs("btcusdt")
         cpp_gateway.start_live_feed(engine)
     else:
         print("[INFO] Using Python WebSocket gateway.")
-        asyncio.create_task(python_binance_ws())
+        asyncio.create_task(python_bybit_ws())
 
     asyncio.create_task(log_flusher_loop())
     asyncio.create_task(ml_bridge_loop())
@@ -364,7 +345,7 @@ config.spread_alpha_multiplier = 0.05   # Lowered from 0.18 to allow trading in 
 config.min_take_profit_bps    = 5.0     # Keep at 5 bps
 config.daily_loss_limit_usd   = loaded_capital * 0.005  # 0.5% of capital (~$50K on $10M)
 
-# ── Futures Fee Model (USDM Perp, Binance VIP0) ─────────────────
+# ── Futures Fee Model (USDM Perp, Bybit VIP0) ─────────────────
 # Maker: -0.5 bps (rebate), Taker: 1.5 bps. Strategy targets maker fills.
 config.maker_fee_pct = -0.00005  # -0.5 bps maker rebate
 taker_fee_global     =  0.00015  # 1.5 bps taker (used in mock engine)
@@ -412,7 +393,7 @@ mark_price      = 0.0   # Futures mark price
 
 # ─── Shared order state (execution_loop ↔ user_data_loop) ───────────────────
 # Both coroutines run concurrently in the same asyncio event loop.
-# user_data_loop clears order_id when a fill or cancel arrives from Binance;
+# user_data_loop clears order_id when a fill or cancel arrives from Bybit;
 # execution_loop reads it before deciding whether to cancel a stale order.
 import dataclasses
 
@@ -428,7 +409,7 @@ class OrderState:
 
 order_state = OrderState()
 
-# ─── Binance Futures WebSocket Consumer ────────────────────────
+# ─── Bybit Futures WebSocket Consumer ────────────────────────
 # ─── Data Logger Loop (C++ Gateway handles network) ────────────
 async def log_flusher_loop():
     print(f"[INFO] Background log flusher started.")
@@ -716,9 +697,9 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"[ERROR] Telemetry loop exception: {e}")
 
 # ─── User Data Stream Loop (Live Fill Tracking) ────────────────
-async def user_data_loop(gateway: BinanceOrderGateway):
+async def user_data_loop(gateway: BybitOrderGateway):
     """
-    Connects to the Binance User Data Stream and processes execution reports.
+    Connects to the Bybit User Data Stream and processes execution reports.
 
     On FILLED / PARTIALLY_FILLED:
       - Syncs the real executed qty/price back to the C++ engine.
@@ -803,7 +784,7 @@ async def user_data_loop(gateway: BinanceOrderGateway):
 # ─── Execution Loop ─────────────────────────────────────────────────────────
 async def execution_loop():
     """
-    Polls the C++ engine for pending limit orders and routes them to Binance.
+    Polls the C++ engine for pending limit orders and routes them to Bybit.
 
     Safety gates (in order of precedence):
       1. Kill-switch: engine.is_trading_halted() — hard-blocks all order submission.
@@ -819,11 +800,11 @@ async def execution_loop():
     global execution_latency_ns
 
     print("[INFO] Starting Execution Loop (Live Trading)...")
-    gateway = BinanceOrderGateway()
+    gateway = BybitOrderGateway()
     await gateway.connect()
 
     last_executed_ts: int = 0
-    SYMBOL           = os.environ.get("BINANCE_SYMBOL", "BTCUSDT").upper()
+    SYMBOL           = os.environ.get("BYBIT_SYMBOL", "BTCUSDT").upper()
     STALE_ORDER_TTL_S = int(os.environ.get("STALE_ORDER_TTL_MS", "5000")) / 1000.0
 
     while True:
@@ -1125,8 +1106,8 @@ async def bybit_ws_loop():
 
                         # Compute cross-venue spread
                         if latest_book.best_bid_price > 0 and bybit_mid > 0:
-                            binance_mid = (latest_book.best_bid_price + latest_book.best_ask_price) / 2.0 / 1e8
-                            spread_bps  = (binance_mid - bybit_mid) / bybit_mid * 10_000
+                            bybit_mid = (latest_book.best_bid_price + latest_book.best_ask_price) / 2.0 / 1e8
+                            spread_bps  = (bybit_mid - bybit_mid) / bybit_mid * 10_000
                             cross_venue_spread_bps = spread_bps
 
                             # Inject stat-arb signal into engine alpha
@@ -1173,7 +1154,7 @@ async def daily_reset_loop():
 # ─── Funding Rate & Mark Price Loop ─────────────────────────────
 async def funding_rate_loop():
     """
-    Polls Binance /fapi/v1/premiumIndex every 30 seconds to keep the global
+    Polls Bybit /fapi/v1/premiumIndex every 30 seconds to keep the global
     `funding_rate` and `mark_price` variables current.
 
     These values are:
@@ -1185,10 +1166,10 @@ async def funding_rate_loop():
     """
     global funding_rate, mark_price
 
-    SYMBOL  = os.environ.get("BINANCE_SYMBOL", "BTCUSDT").upper()
-    WS_BASE = os.environ.get("BINANCE_BASE_URL", "https://fapi.binance.com")
+    SYMBOL  = os.environ.get("BYBIT_SYMBOL", "BTCUSDT").upper()
+    WS_BASE = os.environ.get("BYBIT_BASE_URL", "https://fapi.bybit.com")
     url     = f"{WS_BASE}/fapi/v1/premiumIndex?symbol={SYMBOL}"
-    POLL_S  = 30.0  # Binance updates funding rate info every ~5 s; 30 s is plenty
+    POLL_S  = 30.0  # Bybit updates funding rate info every ~5 s; 30 s is plenty
 
     print(f"[INFO] Starting Funding Rate Loop for {SYMBOL} (polling every {POLL_S:.0f}s)")
 
