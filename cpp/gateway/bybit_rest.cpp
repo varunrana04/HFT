@@ -80,16 +80,15 @@ bool BybitRest::submit_order(const Order& order, const std::string& symbol) {
 
     std::string signature = generate_signature(timestamp, payload);
 
-    ix::HttpRequestArgsPtr args = impl_->httpClient.createRequest(base_url_ + "/v5/order/create");
+    ix::HttpRequestArgsPtr args = impl_->httpClient.createRequest();
     args->extraHeaders["X-BAPI-API-KEY"] = api_key_;
     args->extraHeaders["X-BAPI-SIGN"] = signature;
     args->extraHeaders["X-BAPI-SIGN-TYPE"] = "2";
     args->extraHeaders["X-BAPI-TIMESTAMP"] = timestamp;
     args->extraHeaders["X-BAPI-RECV-WINDOW"] = "5000";
     args->extraHeaders["Content-Type"] = "application/json";
-    args->body = payload;
 
-    auto response = impl_->httpClient.post(base_url_ + "/v5/order/create", args);
+    auto response = impl_->httpClient.post(base_url_ + "/v5/order/create", payload, args);
 
     if (response && response->statusCode == 200) {
         std::cout << "[BybitRest] Order submitted successfully: " << response->body << std::endl;
@@ -116,16 +115,15 @@ bool BybitRest::cancel_order(const std::string& order_id, const std::string& sym
 
     std::string signature = generate_signature(timestamp, payload);
 
-    ix::HttpRequestArgsPtr args = impl_->httpClient.createRequest(base_url_ + "/v5/order/cancel");
+    ix::HttpRequestArgsPtr args = impl_->httpClient.createRequest();
     args->extraHeaders["X-BAPI-API-KEY"] = api_key_;
     args->extraHeaders["X-BAPI-SIGN"] = signature;
     args->extraHeaders["X-BAPI-SIGN-TYPE"] = "2";
     args->extraHeaders["X-BAPI-TIMESTAMP"] = timestamp;
     args->extraHeaders["X-BAPI-RECV-WINDOW"] = "5000";
     args->extraHeaders["Content-Type"] = "application/json";
-    args->body = payload;
 
-    auto response = impl_->httpClient.post(base_url_ + "/v5/order/cancel", args);
+    auto response = impl_->httpClient.post(base_url_ + "/v5/order/cancel", payload, args);
 
     if (response && response->statusCode == 200) {
         std::cout << "[BybitRest] Order " << order_id << " cancelled successfully." << std::endl;
@@ -153,16 +151,15 @@ bool BybitRest::cancel_all_orders(const std::string& symbol) {
 
     std::string signature = generate_signature(timestamp, payload);
 
-    ix::HttpRequestArgsPtr args = impl_->httpClient.createRequest(base_url_ + "/v5/order/cancel-all");
+    ix::HttpRequestArgsPtr args = impl_->httpClient.createRequest();
     args->extraHeaders["X-BAPI-API-KEY"] = api_key_;
     args->extraHeaders["X-BAPI-SIGN"] = signature;
     args->extraHeaders["X-BAPI-SIGN-TYPE"] = "2";
     args->extraHeaders["X-BAPI-TIMESTAMP"] = timestamp;
     args->extraHeaders["X-BAPI-RECV-WINDOW"] = "5000";
     args->extraHeaders["Content-Type"] = "application/json";
-    args->body = payload;
 
-    auto response = impl_->httpClient.post(base_url_ + "/v5/order/cancel-all", args);
+    auto response = impl_->httpClient.post(base_url_ + "/v5/order/cancel-all", payload, args);
 
     if (response && response->statusCode == 200) {
         std::cout << "[BybitRest] Cancel All successful: " << response->body << std::endl;
