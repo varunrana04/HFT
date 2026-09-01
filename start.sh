@@ -2,9 +2,9 @@
 set -e
 
 # Validate required environment variables before starting anything
-if [ -z "$DELTA_API_KEY" ] || [ -z "$DELTA_API_SECRET" ]; then
+if [ -z "$BYBIT_API_KEY" ] || [ -z "$BYBIT_API_SECRET" ]; then
     echo "============================================"
-    echo "ERROR: DELTA_API_KEY and DELTA_API_SECRET"
+    echo "ERROR: BYBIT_API_KEY and BYBIT_API_SECRET"
     echo "must be set in Render > Environment."
     echo "Go to: dashboard.render.com → your service"
     echo "       → Environment → Add env vars"

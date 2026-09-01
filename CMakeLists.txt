@@ -75,8 +75,8 @@ add_library(hft_core STATIC
     cpp/core/strategy_engine.cpp
     cpp/net/dpdk_rx.cpp
     cpp/net/dpdk_tx.cpp
-    cpp/gateway/delta_ws.cpp
-    cpp/gateway/delta_rest.cpp
+    cpp/gateway/bybit_ws.cpp
+    cpp/gateway/bybit_rest.cpp
     ${SIMDJSON_SRC}
 )
 

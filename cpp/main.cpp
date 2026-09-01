@@ -1,6 +1,6 @@
 #include "strategy_engine.h"
-#include "delta_ws.h"
-#include "delta_rest.h"
+#include "bybit_ws.h"
+#include "bybit_rest.h"
 #include <iostream>
 #include <cstdlib>
 #include <thread>
@@ -55,15 +55,15 @@ int main() {
     std::cout << "=======================================\n";
 
     // 1. Load API keys
-    const char* api_key_env    = std::getenv("DELTA_API_KEY");
-    const char* api_secret_env = std::getenv("DELTA_API_SECRET");
+    const char* api_key_env    = std::getenv("BYBIT_API_KEY");
+    const char* api_secret_env = std::getenv("BYBIT_API_SECRET");
     if (!api_key_env || !api_secret_env) {
-        std::cerr << "[ERROR] Missing DELTA_API_KEY or DELTA_API_SECRET in environment.\n";
+        std::cerr << "[ERROR] Missing BYBIT_API_KEY or BYBIT_API_SECRET in environment.\n";
         return 1;
     }
     std::string api_key(api_key_env);
     std::string api_secret(api_secret_env);
-    std::cout << "[INFO] Loaded Delta Exchange API Credentials.\n";
+    std::cout << "[INFO] Loaded Bybit API Credentials.\n";
 
     // 2. Initialize Engine
     StrategyConfig cfg;
@@ -75,16 +75,16 @@ int main() {
         std::cerr << "[WARNING] Could not load lgbm_signal_model.txt! Using fallback weights.\n";
     }
 
-    // 3. Initialize Gateways — Delta Exchange only
-    const char* sym_env    = std::getenv("DELTA_SYMBOL");
-    std::string delta_symbol = sym_env ? sym_env : "BTCUSD";
-    std::cout << "[INFO] Trading symbol: " << delta_symbol << "\n";
+    // 3. Initialize Gateways — Bybit only
+    const char* sym_env    = std::getenv("BYBIT_SYMBOL");
+    std::string bybit_symbol = sym_env ? sym_env : "BTCUSDT";
+    std::cout << "[INFO] Trading symbol: " << bybit_symbol << "\n";
 
-    gateway::DeltaWs   ws_feed(delta_symbol);
-    gateway::DeltaRest rest_client(api_key, api_secret);
+    gateway::BybitWs   ws_feed(bybit_symbol);
+    gateway::BybitRest rest_client(api_key, api_secret);
 
     // 4. Connect Market Data WS
-    std::cout << "[INFO] Connecting to Delta Exchange WebSocket...\n";
+    std::cout << "[INFO] Connecting to Bybit WebSocket...\n";
     ws_feed.start_live_feed(&engine);
 
     // 5. Initialize CSV Logger
@@ -148,9 +148,9 @@ int main() {
                       << " Qty " << static_cast<double>(o.quantity) / 1e8
                       << " @ "   << static_cast<double>(o.price)    / 1e8 << "\n";
 
-            (void)std::async(std::launch::async, [&rest_client, o, delta_symbol]() {
-                rest_client.cancel_all_orders(delta_symbol);
-                rest_client.submit_order(o, delta_symbol);
+            (void)std::async(std::launch::async, [&rest_client, o, bybit_symbol]() {
+                rest_client.cancel_all_orders(bybit_symbol);
+                rest_client.submit_order(o, bybit_symbol);
             });
 
             engine.pending_order_.dispatched_to_rest = true;
