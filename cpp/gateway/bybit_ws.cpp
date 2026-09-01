@@ -105,7 +105,7 @@ void BybitWs::start_live_feed(hft::StrategyEngine* engine) {
                             
                             std::string_view qty_str;
                             if (trade_obj["v"].get(qty_str) == simdjson::SUCCESS) {
-                                trade.qty = static_cast<int64_t>(std::stod(std::string(qty_str)) * 1e8);
+                                trade.quantity = static_cast<int64_t>(std::stod(std::string(qty_str)) * 1e8);
                             }
                             
                             std::string_view side_str;
