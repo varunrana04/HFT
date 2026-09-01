@@ -13,8 +13,8 @@ if [ -z "$BYBIT_API_KEY" ] || [ -z "$BYBIT_API_SECRET" ]; then
 fi
 
 echo "Starting C++ HFT Engine in background..."
-export BYBIT_BASE_URL="https://api.bybit.com"
-export BYBIT_WS_BASE_URL="wss://stream.bybit.com/v5/public/linear"
+export BYBIT_BASE_URL="https://api-testnet.bybit.com"
+export BYBIT_WS_BASE_URL="wss://stream-testnet.bybit.com/v5/public/linear"
 ./hft_engine_live &
 ENGINE_PID=$!
 
