@@ -91,13 +91,13 @@ bool BybitRest::submit_order(const Order& order, const std::string& symbol) {
 
     auto response = impl_->httpClient.post(base_url_ + "/v5/order/create", args);
 
-    if (response->statusCode == 200) {
+    if (response && response->statusCode == 200) {
         std::cout << "[BybitRest] Order submitted successfully: " << response->body << std::endl;
         return true;
-    } else {
-        std::cerr << "[BybitRest] Order submission failed! Status: " << response->statusCode << " Body: " << response->body << std::endl;
-        return false;
     }
+    
+    std::cerr << "[BybitRest] Order submission failed! Status: " << (response ? std::to_string(response->statusCode) : "N/A") << " Body: " << (response ? response->body : "N/A") << std::endl;
+    return false;
 }
 
 bool BybitRest::cancel_order(const std::string& order_id, const std::string& symbol) {
@@ -127,14 +127,14 @@ bool BybitRest::cancel_order(const std::string& order_id, const std::string& sym
 
     auto response = impl_->httpClient.post(base_url_ + "/v5/order/cancel", args);
 
-    if (response->statusCode == 200) {
+    if (response && response->statusCode == 200) {
         std::cout << "[BybitRest] Order " << order_id << " cancelled successfully." << std::endl;
         return true;
-    } else {
-        std::cerr << "[BybitRest] Cancel failed! Status: " << response->statusCode 
-                  << " Body: " << response->body << std::endl;
-        return false;
     }
+    
+    std::cerr << "[BybitRest] Cancel failed! Status: " << (response ? std::to_string(response->statusCode) : "N/A") 
+              << " Body: " << (response ? response->body : "N/A") << std::endl;
+    return false;
 }
 
 bool BybitRest::cancel_all_orders(const std::string& symbol) {
@@ -164,14 +164,14 @@ bool BybitRest::cancel_all_orders(const std::string& symbol) {
 
     auto response = impl_->httpClient.post(base_url_ + "/v5/order/cancel-all", args);
 
-    if (response->statusCode == 200) {
+    if (response && response->statusCode == 200) {
         std::cout << "[BybitRest] Cancel All successful: " << response->body << std::endl;
         return true;
-    } else {
-        std::cerr << "[BybitRest] Cancel All failed! Status: " << response->statusCode 
-                  << " Body: " << response->body << std::endl;
-        return false;
     }
+    
+    std::cerr << "[BybitRest] Cancel All failed! Status: " << (response ? std::to_string(response->statusCode) : "N/A") 
+              << " Body: " << (response ? response->body : "N/A") << std::endl;
+    return false;
 }
 
 } // namespace gateway
