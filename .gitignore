@@ -49,11 +49,15 @@ results/*.png
 results/*.csv
 results/live_session_*
 
-# ── Models — keep production/ in git (small, versioned) ──────────────────────
-# models/production/  <-- intentionally tracked
+# ── Models — track production models in git ───────────────────────────────────
+# python/ml_pipeline/models/*.txt  <- tracked (LGBM model)
+# python/ml_pipeline/models/*.pt   <- tracked (RL policy)
 models/*.onnx
-models/*.txt
 models/*.png
+# Large data files — never commit
+*.parquet
+*.feather
+*.h5
 
 # ── Logs & temporary files ────────────────────────────────────────────────────
 logs/
