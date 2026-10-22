@@ -11,20 +11,22 @@
 
 ---
 
-## 🖥 Live Institutional Cockpit
+## 🖥 Institutional Quantitative Cockpit
 
-![Institutional HFT Quant Dashboard](docs/images/dashboard_quant_cockpit.png)
+![Institutional HFT Trading Terminal](docs/images/institutional_hft_cockpit.jpg)
 
-*Real-time React + Vite quantitative cockpit featuring Sub-Microsecond Tree Traversals, Recursive Kalman Stat Arb, Almgren-Chriss Optimal Execution, and Walk-Forward Rolling Out-of-Sample Calibration.*
+*Ultra-low-latency institutional market-making cockpit featuring sub-microsecond execution gauges, real-time Level-2 order book depth ladders, Almgren-Chriss liquidation schedules, 3D volatility smiles, and live algorithmic fill blotters.*
 
 ---
 
-## 🏛 System Architecture
+## 🏛 System Architecture & Hardware Acceleration
 
-![Institutional HFT Architecture](docs/images/architecture_diagram.png)
+![HFT C++20 Hardware Execution Engine](docs/images/hft_hardware_engine.jpg)
+
+![Institutional Architecture Diagram](docs/images/architecture_diagram.png)
 
 ### Core Hot Path & Execution Pipeline
-- **C++20 Deterministic Execution Core**: Zero-allocation limit order book parsing, lock-free SPSC ring buffers, and AVX-512 vector microprice and Order Flow Imbalance (OFI) calculations (40 ns latency).
+- **C++20 Deterministic Execution Core**: Zero-allocation limit order book parsing, lock-free SPSC ring buffers, and AVX-512 vector microprice and Order Flow Imbalance (OFI) calculations (**40 ns** latency).
 - **Fast Flat-Array Tree Evaluator (Frontier A)**: Compiles LightGBM decision trees into contiguous 1D C-arrays (`split_features`, `thresholds`, `left_children`, `right_children`, `leaf_values`). Evaluates in **0.23 µs per tick** (4,311,000 predictions/sec) directly in the hot path without external dependencies.
 - **Tri-Engine Quant Alpha Engine**:
   1. *Engine 1 (LGBM Signal Booster)*: 8 Level-2 microstructure features (`tfi_ema_50`, `tfi_ema_200`, `volatility_ema_100`, `volatility_ema_500`, `book_imbalance`, `spread_bps`, `microprice`, `spread_ema`) trained under custom asymmetric adverse selection loss.
@@ -51,16 +53,39 @@
 
 ---
 
-## 📈 Quantitative Performance & Validation Suite
+## 🔬 Advanced Microstructure & Quantitative Analytics
 
-![Quantitative Analytics Suite](reports/charts/charting_suite.png)
+### 1. Level-2 Order Book Microstructure Heatmap
+![L2 Order Book Heatmap](docs/images/order_book_depth_heatmap.png)
+*High-frequency depth reconstruction across 50 relative price ticks showing bid liquidity walls (green), ask resistance (red), and microprice trajectory absorption through toxic flow.*
 
-### Walk-Forward Out-Of-Sample Results
-- **Directional Accuracy**: 74.9% on chronological out-of-sample holdout folds.
-- **Annualized Sharpe Ratio**: **156.07**
-- **Net Cumulative PnL**: **+$7,089.62** across sequential live market ticks.
-- **Maker Rebate Capture**: Fully reconciles maker fee credits without execution leakages.
-- **Quant Truth Proofs**: 13/13 mathematical proofs passed, verifying zero lookahead bias, deterministic seed guarantees, and exact PnL cash reconciliation.
+### 2. 3D Alpha Edge Surface & Expectancy
+![3D Alpha Edge Surface](docs/images/alpha_surface_3d.png)
+*Expected strategy edge $E[\alpha \mid \text{Spread}, \text{Volatility}]$ plotted across bid-ask spread and realized volatility regimes, isolating high-conviction maker capture zones.*
+
+### 3. Almgren-Chriss Cost-Risk Efficient Frontier
+![Almgren-Chriss Efficient Frontier](docs/images/almgren_chriss_efficient_frontier.png)
+*Closed-form non-linear liquidation frontier minimizing Expected Shortfall $E[X]$ against Variance $V[X]$ across varying trader risk aversions $\lambda \in [10^{-6}, 10^{-2}]$.*
+
+### 4. 3D SVI Implied Volatility Surface
+![3D SVI Volatility Surface](docs/images/svi_volatility_surface_3d.png)
+*Stochastic Volatility Inspired (SVI) total variance surface parameterizing crypto options volatility smile and negative skew across log-moneyness and maturity.*
+
+### 5. Monte Carlo Stochastic Simulation Fan (5,000 Paths)
+![Monte Carlo Stochastic Fan](docs/images/monte_carlo_fan.png)
+*Block-bootstrapped stochastic equity paths from 13,362 live orderbook fills with 99%, 95%, 75%, and 50% percentile confidence ribbons and Value-at-Risk (VaR 95%) adverse boundary.*
+
+---
+
+## 🏢 Algorithmic Trading Operations
+
+![Quantitative Trading Floor](docs/images/quant_trading_floor.jpg)
+
+---
+
+## 📈 Live React + Vite Quant Dashboard
+
+![Live Institutional Web Cockpit](docs/images/dashboard_quant_cockpit.png)
 
 ---
 
@@ -119,7 +144,7 @@ cmake --build build -j$(nproc)
 ### 4. Run Test Suite & Quantitative Proofs
 ```bash
 # Run all unit tests
-pytest tests/ -v
+python -m pytest tests/ -v
 
 # Run the 13 Quantitative Truth Proofs
 python tests/quant_empirical_validation.py
