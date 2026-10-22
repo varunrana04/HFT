@@ -110,7 +110,7 @@ class Actor(nn.Module):
         self.net     = nn.Sequential(nn.Linear(latent_dim, 128), nn.SiLU(), nn.Linear(128, 3))
         self.log_std = nn.Parameter(torch.zeros(3))
         self.register_buffer("action_mins", torch.tensor([0.3, 0.3, 0.01]))
-        self.register_buffer("action_maxs", torch.tensor([3.0, 3.0, 0.10]))
+        self.register_buffer("action_maxs", torch.tensor([8.0, 8.0, 0.15]))  # v5: wider ceiling for inventory skew
 
     def forward(self, latent):
         lo, hi = self.action_mins, self.action_maxs
@@ -159,7 +159,7 @@ class PPOAgent(nn.Module):
 # VECTORIZED GPU ENVIRONMENT
 # ─────────────────────────────────────────────────────────────────────────────
 class VecTradingEnvGPU:
-    INV_PENALTY_SCALE = 0.05
+    INV_PENALTY_SCALE = 0.15  # v5: tripled from 0.05 — forces aggressive de-risking
 
     def __init__(self, arrays, n_envs=N_ENVS):
         self.n_envs = n_envs
@@ -229,8 +229,15 @@ class VecTradingEnvGPU:
             -MAX_POSITION, MAX_POSITION
         )
 
-        inv_penalty = self.INV_PENALTY_SCALE * (self.positions / MAX_POSITION) ** 2
-        rewards     = pnl - inv_penalty
+        inv_frac_now = self.positions / MAX_POSITION
+        inv_penalty = self.INV_PENALTY_SCALE * (inv_frac_now ** 2)
+
+        # v5: Bonus for reducing absolute inventory (|inv| decreasing = good)
+        prev_inv_abs = (self.positions - bid_filled.float() + ask_filled.float()).abs()
+        curr_inv_abs = self.positions.abs()
+        inv_reduction_bonus = torch.clamp(prev_inv_abs - curr_inv_abs, min=0.0) * 0.05
+
+        rewards     = pnl - inv_penalty + inv_reduction_bonus
 
         self.idx += 1
         self._t  += 1

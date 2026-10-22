@@ -1,0 +1,17 @@
+{
+  "model": "lgbm",
+  "period": "custom",
+  "n_windows": 1,
+  "profitable_windows_pct": 100.0,
+  "total_trades": 7469,
+  "total_pnl_bps": 8998.63707046821,
+  "avg_win_rate": 54.90694872138171,
+  "sharpe_ann": 330.6281934187338,
+  "profit_factor": 2.0215568957191357,
+  "worst_dd_bps": -145.56475501201066,
+  "est_ann_pnl_bps": 323950.93453685555,
+  "calmar": 2225.4764520979043,
+  "mc_median_bps": 8988.773001699908,
+  "mc_5th_pct": 8289.486138323718,
+  "mc_p_profitable": 100.0
+}

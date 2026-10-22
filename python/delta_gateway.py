@@ -234,28 +234,39 @@ class DeltaWebSocket:
         print(f"[DELTA WS] Connecting to {self._url}")
         while True:
             try:
-                async with websockets.connect(self._url, ping_interval=20) as ws:
-                    # Subscribe to L1 ticker (lightest feed)
-                    sub = {
-                        "type": "subscribe",
-                        "payload": {
-                            "channels": [
-                                {"name": "v2/ticker", "symbols": ["BTCUSD"]},
-                            ]
+                async with websockets.connect(self._url, ping_interval=None) as ws:
+                    async def _heartbeat():
+                        while True:
+                            await asyncio.sleep(15)
+                            try:
+                                await ws.send(json.dumps({"type": "ping"}))
+                            except Exception:
+                                break
+                    hb_task = asyncio.create_task(_heartbeat())
+                    try:
+                        # Subscribe to L1 ticker (lightest feed)
+                        sub = {
+                            "type": "subscribe",
+                            "payload": {
+                                "channels": [
+                                    {"name": "v2/ticker", "symbols": ["BTCUSD"]},
+                                ]
+                            }
                         }
-                    }
-                    await ws.send(json.dumps(sub))
-                    print("[DELTA WS] Subscribed to BTCUSD ticker.")
+                        await ws.send(json.dumps(sub))
+                        print("[DELTA WS] Subscribed to BTCUSD ticker.")
 
-                    async for raw in ws:
-                        msg = json.loads(raw)
-                        if msg.get("type") == "v2/ticker":
-                            data = msg.get("symbol_data", {}).get("BTCUSD", {})
-                            bid = float(data.get("best_bid", 0) or 0)
-                            ask = float(data.get("best_ask", 0) or 0)
-                            if bid > 0 and ask > 0:
-                                mid = (bid + ask) / 2.0
-                                await self._cb(bid, ask, mid)
+                        async for raw in ws:
+                            msg = json.loads(raw)
+                            if msg.get("type") == "v2/ticker":
+                                data = msg.get("symbol_data", {}).get("BTCUSD", {})
+                                bid = float(data.get("best_bid", 0) or 0)
+                                ask = float(data.get("best_ask", 0) or 0)
+                                if bid > 0 and ask > 0:
+                                    mid = (bid + ask) / 2.0
+                                    await self._cb(bid, ask, mid)
+                    finally:
+                        hb_task.cancel()
 
             except asyncio.CancelledError:
                 break

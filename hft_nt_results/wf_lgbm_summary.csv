@@ -1,0 +1,12 @@
+metric,value
+total_pnl_bps,8978.405833805247
+avg_win_rate_pct,55.67547680475069
+sharpe_ann,330.1714687380147
+profit_factor,2.019321438650737
+worst_dd_bps,-145.56475501200953
+window_consistency_pct,100.0
+total_trades,7470.0
+mc_median_bps,8969.482528356246
+mc_5th_pct,8282.272443357277
+mc_1st_pct,8001.892815861699
+p_profitable_path,100.0

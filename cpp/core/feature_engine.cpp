@@ -84,6 +84,12 @@ void FeatureEngine::reset() noexcept {
     recent_buy_vol_  = 0.0;
     recent_sell_vol_ = 0.0;
     cvd_ = 0.0;
+
+    // Reset new L2 EMA state
+    tfi_ema_50_  = 0.0;
+    tfi_ema_200_ = 0.0;
+    vol_ema_500_ = 0.0;
+    spread_ema_  = 0.0;
 }
 
 // ─── Main Entry Point ────────────────────────────────────────
@@ -142,20 +148,43 @@ FeatureVector FeatureEngine::compute_all(const BookSnapshot& book,
 
     // 8. Trade Imbalance (EMA of buy vs sell volume)
     double trade_qty = fixed_to_qty(trade.quantity);
+    double signed_vol = 0.0;
     if (trade.side == Side::BID) {
         recent_buy_vol_ = recent_buy_vol_ * 0.99 + trade_qty;
         recent_sell_vol_ = recent_sell_vol_ * 0.99;
         cvd_ += trade_qty;
+        signed_vol =  trade_qty;
     } else {
         recent_sell_vol_ = recent_sell_vol_ * 0.99 + trade_qty;
         recent_buy_vol_ = recent_buy_vol_ * 0.99;
         cvd_ -= trade_qty;
+        signed_vol = -trade_qty;
     }
     double total_recent_vol = recent_buy_vol_ + recent_sell_vol_;
     fv.trade_imbalance = (total_recent_vol > 0.0) 
         ? (recent_buy_vol_ - recent_sell_vol_) / total_recent_vol 
         : 0.0;
     fv.cvd = cvd_;
+
+    // ── NEW: L2 EMA features (matches Python 8-feature LGBM model) ──
+    // TFI EMAs — exponential moving average of signed volume
+    tfi_ema_50_  = tfi_ema_50_  + kTfiAlpha50  * (signed_vol - tfi_ema_50_);
+    tfi_ema_200_ = tfi_ema_200_ + kTfiAlpha200 * (signed_vol - tfi_ema_200_);
+    fv.tfi_ema_50  = tfi_ema_50_;
+    fv.tfi_ema_200 = tfi_ema_200_;
+
+    // Slow vol EMA — uses |price_diff| per tick (approximated as |log_return * mid_price|)
+    double price_diff = (vol_last_price_ > 0.0) ? std::abs(trade_price - vol_last_price_) : 0.0;
+    vol_ema_500_ = vol_ema_500_ + kVolAlpha500 * (price_diff - vol_ema_500_);
+    fv.volatility_ema_500 = vol_ema_500_;
+
+    // Spread EMA — smoothed bid-ask spread
+    double raw_spread_bps_now = fv.spread_bps; // already computed above (raw before normalization)
+    spread_ema_ = spread_ema_ + kSpreadAlpha * (raw_spread_bps_now - spread_ema_);
+    fv.spread_ema = spread_ema_;
+
+    // Book Imbalance — (bid_qty - ask_qty) / total (= OBI, matches Python book_imbalance)
+    fv.book_imbalance = fv.obi;  // obi is already computed above as (bid-ask)/(bid+ask)
     // 9. Hawkes Process Intensity
     hawkes_.update(trade.timestamp_ns, fixed_to_qty(trade.quantity));
     fv.hawkes_intensity = hawkes_.current_lambda;

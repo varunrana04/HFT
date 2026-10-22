@@ -39,21 +39,30 @@ data/*.zip
 data/*.csv
 
 # ── Results — generated experiment outputs ────────────────────────────────────
-results/charts/
 results/paper_trades/
-results/report_charts/
 results/walk_forward/fold_*/
-results/walk_forward/wf_*.png
 results/walk_forward/wf_metrics.csv
-results/*.png
 results/*.csv
 results/live_session_*
+
+# Explicitly track essential quantitative benchmark and report charts
+!results/*.png
+!results/charts/*.png
+!results/report_charts/*.png
+!results/walk_forward/*.png
+!reports/charts/*.png
 
 # ── Models — track production models in git ───────────────────────────────────
 # python/ml_pipeline/models/*.txt  <- tracked (LGBM model)
 # python/ml_pipeline/models/*.pt   <- tracked (RL policy)
 models/*.onnx
-models/*.png
+!models/*.png
+!python/models/*.png
+
+# ── Build & Temporary directories ─────────────────────────────────────────────
+build2/
+build_test/
+
 # Large data files — never commit
 *.parquet
 *.feather

@@ -1,0 +1,3 @@
+@echo off
+echo Launching MSYS2 to compile and run tests...
+C:\msys64\msys2_shell.cmd -mingw64 -c "bash /c/Users/Varun/Downloads/HFT/run_tests.sh"

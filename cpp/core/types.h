@@ -230,15 +230,18 @@ static_assert(std::is_trivially_copyable_v<Liquidation>,
  */
 struct alignas(CACHE_LINE_SIZE) FeatureVector {
     int64_t timestamp_ns;        ///< Timestamp of the source data
-    double  microprice;          ///< Volume-weighted fair value
-    double  ofi;                 ///< Order Flow Imbalance
+    double  microprice;          ///< Volume-weighted fair value (L2)
+    double  ofi;                 ///< Order Flow Imbalance (C++ legacy)
+    double  book_imbalance;      ///< (bid_qty-ask_qty)/total — REAL L2 OFI (matches ML model)
     double  vpin;                ///< Volume-synchronized toxicity [0,1]
-    double  spread_bps;          ///< Bid-ask spread in basis points
-    double  realized_vol;        ///< Tick-level realized volatility
+    double  spread_bps;          ///< Bid-ask spread in basis points (L2)
+    double  spread_ema;          ///< EMA(spread_bps, half_life=50) (matches ML model)
+    double  realized_vol;        ///< Tick-level realized volatility (fast, ema_100)
+    double  volatility_ema_500;  ///< Slow realized vol EMA (matches ML model)
+    double  tfi_ema_50;          ///< Trade Flow Imbalance EMA, fast  (matches ML model)
+    double  tfi_ema_200;         ///< Trade Flow Imbalance EMA, slow  (matches ML model)
     double  stat_arb_zscore;     ///< Z-score of spread (pairs trading)
     double  vrp;                 ///< Volatility Risk Premium
-    
-
 
     // ── Engineered Features ──
     double  obi;                 ///< Order Book Imbalance

@@ -244,6 +244,18 @@ private:
     WelfordNormalizer norm_ofi_;
     WelfordNormalizer norm_spread_;
     WelfordNormalizer norm_vol_;
+
+    // ── L2 EMA State (matches Python 8-feature LGBM model) ──────
+    double tfi_ema_50_  = 0.0;  ///< Trade Flow Imbalance EMA fast (α = 1 - exp(-ln2/50))
+    double tfi_ema_200_ = 0.0;  ///< Trade Flow Imbalance EMA slow (α = 1 - exp(-ln2/200))
+    double vol_ema_500_ = 0.0;  ///< Price-tick vol EMA slow        (α = 1 - exp(-ln2/500))
+    double spread_ema_  = 0.0;  ///< Spread BPS EMA                 (α = 1 - exp(-ln2/50))
+    // EMA decay constants (precomputed at first use; const after first call)
+    static constexpr double kTfiAlpha50  = 0.013695; // 1 - exp(-ln2/50)
+    static constexpr double kTfiAlpha200 = 0.003460; // 1 - exp(-ln2/200)
+    static constexpr double kVolAlpha500 = 0.001386; // 1 - exp(-ln2/500)
+    static constexpr double kSpreadAlpha = 0.013695; // same as tfi_50
+
     // ── Hawkes Process State ─────────────────────────────────
     HawkesProcess hawkes_;
 

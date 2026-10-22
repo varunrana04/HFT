@@ -1,0 +1,18 @@
+{
+  "model_version": "v4_8feature",
+  "num_features": 8,
+  "features": [
+    "tfi_ema_50",
+    "tfi_ema_200",
+    "volatility_ema_100",
+    "volatility_ema_500",
+    "book_imbalance",
+    "spread_bps",
+    "microprice",
+    "spread_ema"
+  ],
+  "oos_win_rate": 93.35850181312404,
+  "oos_edge_bps": 1.3331863343323018,
+  "total_trees": 150,
+  "confidence_band_bps": 0.5
+}
