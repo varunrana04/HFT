@@ -358,33 +358,16 @@ def generate_almgren_chriss_efficient_frontier():
     print(f"  [+] Saved {out_path}")
 
 
-def copy_generated_ai_graphics():
-    print("[*] Synchronizing generated AI graphics from artifact store...")
-    ai_graphics = [
-        ("institutional_hft_cockpit_1792640779772.jpg", "institutional_hft_cockpit.jpg"),
-        ("hft_hardware_engine_1792640800596.jpg", "hft_hardware_engine.jpg"),
-        ("quant_trading_floor_1792640823824.jpg", "quant_trading_floor.jpg"),
-    ]
-    artifact_base = r"C:\Users\Varun\.gemini\antigravity-ide\brain\2e922559-21bd-4613-8a96-60e134e19884"
-    for src_name, dst_name in ai_graphics:
-        src = os.path.join(artifact_base, src_name)
-        if os.path.exists(src):
-            dst = os.path.join(DOCS_IMG_DIR, dst_name)
-            import shutil
-            shutil.copy2(src, dst)
-            print(f"  [+] Copied AI graphic: {dst_name}")
-
-
 if __name__ == "__main__":
     print("=" * 70)
-    print("  HFT QUANT ENGINE: GENERATING ADVANCED VISUALIZATIONS")
+    print("  HFT QUANT ENGINE: GENERATING ADVANCED QUANTITATIVE VISUALS")
     print("=" * 70)
     generate_3d_alpha_surface()
     generate_monte_carlo_fan()
     generate_l2_order_book_heatmap()
     generate_3d_svi_vol_surface()
     generate_almgren_chriss_efficient_frontier()
-    copy_generated_ai_graphics()
     print("=" * 70)
-    print("  ALL ADVANCED IMAGES GENERATED & SYNCHRONIZED SUCCESSFULLY!")
+    print("  ALL QUANTITATIVE CHARTS GENERATED SUCCESSFULLY!")
     print("=" * 70)
+
